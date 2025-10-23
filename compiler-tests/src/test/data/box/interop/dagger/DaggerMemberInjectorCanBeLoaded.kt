@@ -16,12 +16,12 @@ public class ExampleClass {
 // MODULE: main(lib)
 // FILE: DependencyImpl.kt
 @ContributesBinding(AppScope::class)
-class DependencyImpl @Inject constructor(): Dependency
+class DependencyImpl @Inject constructor() : Dependency
 
 // FILE: ExampleInjector.kt
 @ContributesTo(AppScope::class)
 interface ExampleInjector {
-    fun inject(example: ExampleClass)
+  fun inject(example: ExampleClass)
 }
 
 // FILE: ExampleGraph.kt
@@ -29,10 +29,10 @@ interface ExampleInjector {
 interface ExampleGraph
 
 fun box(): String {
-    val graph = createGraph<ExampleGraph>()
-    val example = ExampleClass()
+  val graph = createGraph<ExampleGraph>()
+  val example = ExampleClass()
 
-    graph.asContribution<ExampleInjector>().inject(example)
-    assertNotNull(example.dependency)
-    return "OK"
+  graph.inject(example)
+  assertNotNull(example.dependency)
+  return "OK"
 }
