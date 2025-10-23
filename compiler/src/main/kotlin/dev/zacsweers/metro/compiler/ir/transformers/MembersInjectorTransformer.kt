@@ -9,6 +9,7 @@ import dev.zacsweers.metro.compiler.capitalizeUS
 import dev.zacsweers.metro.compiler.decapitalizeUS
 import dev.zacsweers.metro.compiler.exitProcessing
 import dev.zacsweers.metro.compiler.fir.MetroDiagnostics
+import dev.zacsweers.metro.compiler.generatedClass
 import dev.zacsweers.metro.compiler.ir.IrMetroContext
 import dev.zacsweers.metro.compiler.ir.IrTypeKey
 import dev.zacsweers.metro.compiler.ir.assignConstructorParamsToFields
@@ -163,10 +164,40 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
         isMetroImpl
       }
 
+    fun computeMemberInjectClass(injectorClass: IrClass, isDagger: Boolean): MemberInjectClass {
+      // Use cached member inject parameters if available, otherwise fall back to fresh lookup
+      val injectedMembersByClass = declaration.getOrComputeMemberInjectParameters(isDagger)
+      val parameterGroupsForClass = injectedMembersByClass.getValue(injectedClassId)
+
+      val declaredInjectFunctions =
+        parameterGroupsForClass.associateBy { params ->
+          val name =
+            if (params.isProperty) {
+              params.irProperty!!.name
+            } else {
+              params.callableId.callableName
+            }
+          injectorClass.requireSimpleFunction("inject${name.capitalizeUS().asString()}").owner
+        }
+
+      return MemberInjectClass(
+        injectorClass,
+        typeKey,
+        injectedMembersByClass,
+        declaredInjectFunctions,
+      )
+    }
+
     if (injectorClass == null) {
       if (options.enableDaggerRuntimeInterop) {
-        // TODO Look up where dagger would generate one
-        //  requires memberInjectParameters to support fields
+        // Look up where dagger would generate one
+        val daggerInjector =
+          pluginContext.referenceClass(declaration.classIdOrFail.generatedClass("_MembersInjector"))
+        if (daggerInjector != null) {
+          return computeMemberInjectClass(daggerInjector.owner, isDagger = true).also {
+            generatedInjectors[injectedClassId] = it
+          }
+        }
       }
       // For now, assume there's no members to inject. Would be nice if we could better check this
       // in the future
@@ -176,33 +207,14 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
 
     val companionObject = injectorClass.companionObject()!!
 
-    // Use cached member inject parameters if available, otherwise fall back to fresh lookup
-    val injectedMembersByClass = declaration.getOrComputeMemberInjectParameters()
-    val parameterGroupsForClass = injectedMembersByClass.getValue(injectedClassId)
-
-    val declaredInjectFunctions =
-      parameterGroupsForClass.associateBy { params ->
-        val name =
-          if (params.isProperty) {
-            params.irProperty!!.name
-          } else {
-            params.callableId.callableName
-          }
-        companionObject.requireSimpleFunction("inject${name.capitalizeUS().asString()}").owner
-      }
-
-    if (declaration.isExternalParent) {
-      return MemberInjectClass(
-          injectorClass,
-          typeKey,
-          injectedMembersByClass,
-          declaredInjectFunctions,
-        )
-        .also { generatedInjectors[injectedClassId] = it }
+    val memberInjectClass = computeMemberInjectClass(injectorClass, isDagger = true)
+    if (isExternal) {
+      return memberInjectClass.also { generatedInjectors[injectedClassId] = it }
     }
 
     val ctor = injectorClass.primaryConstructor!!
 
+    val injectedMembersByClass = memberInjectClass.requiredParametersByClass
     val allParameters =
       injectedMembersByClass.values.flatMap { it.flatMap(Parameters::regularParameters) }
 
@@ -239,7 +251,7 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
     )
 
     // Implement static inject{name}() for each declared callable in this class
-    for ((function, params) in declaredInjectFunctions) {
+    for ((function, params) in memberInjectClass.declaredInjectFunctions) {
       function.apply {
         val instanceParam = regularParameters[0]
 
@@ -295,7 +307,7 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
       }
     }
 
-    val injectFunctions = inheritedInjectFunctions + declaredInjectFunctions
+    val injectFunctions = inheritedInjectFunctions + memberInjectClass.declaredInjectFunctions
 
     // Override injectMembers()
     injectorClass.requireSimpleFunction(Symbols.StringNames.INJECT_MEMBERS).owner.apply {
@@ -316,16 +328,12 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
 
     injectorClass.dumpToMetroLog()
 
-    return MemberInjectClass(
-        injectorClass,
-        typeKey,
-        injectedMembersByClass,
-        declaredInjectFunctions,
-      )
-      .also { generatedInjectors[injectedClassId] = it }
+    return memberInjectClass.also { generatedInjectors[injectedClassId] = it }
   }
 
-  private fun IrClass.getOrComputeMemberInjectParameters(): Map<ClassId, List<Parameters>> {
+  private fun IrClass.getOrComputeMemberInjectParameters(
+    isDagger: Boolean
+  ): Map<ClassId, List<Parameters>> {
     // Compute supertypes once - we'll need them for either cached lookup or fresh computation
     val allTypes =
       getAllSuperTypes(excludeSelf = false, excludeAny = true)
@@ -335,11 +343,8 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
 
     val result =
       processTypes(allTypes) { clazz, classId, nameAllocator ->
-        injectorParamsByClass[classId]?.let {
-          return@processTypes it
-        }
         injectorParamsByClass.getOrPut(classId) {
-          if (clazz.isExternalParent) {
+          if (clazz.isExternalParent && !isDagger) {
             // External class - check metadata for inject function names
             val metadata = clazz.metroMetadata?.injected_class
             val injectFunctionNames = metadata?.member_inject_functions ?: emptyList()
@@ -351,7 +356,7 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
               emptyList()
             }
           } else {
-            // In-round class - compute normally and cache
+            // In-round class or from dagger - compute normally and cache
             val computed =
               clazz
                 .declaredCallableMembers(
