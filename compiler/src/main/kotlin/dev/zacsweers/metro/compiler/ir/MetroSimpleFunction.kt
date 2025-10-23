@@ -4,13 +4,16 @@ package dev.zacsweers.metro.compiler.ir
 
 import dev.drewhamilton.poko.Poko
 import dev.zacsweers.metro.compiler.MetroAnnotations
+import org.jetbrains.kotlin.ir.declarations.IrProperty
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.util.callableId
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.synthetic.isVisibleOutside
 
 /** Simple holder with resolved annotations to save us lookups. */
-// TODO cache these in a transformer context?
+// TODO
+//  cache these in a transformer context?
+//  make this MetroCallable to support properties
 @Poko
 internal class MetroSimpleFunction(
   @Poko.Skip val ir: IrSimpleFunction,
@@ -19,9 +22,7 @@ internal class MetroSimpleFunction(
 ) : Comparable<MetroSimpleFunction> {
   override fun toString() = callableId.toString()
 
-  override fun compareTo(other: MetroSimpleFunction): Int {
-    return callableId.toString().compareTo(other.callableId.toString())
-  }
+  override fun compareTo(other: MetroSimpleFunction): Int = callableId.toString().compareTo(other.callableId.toString())
 }
 
 internal val MetroSimpleFunction.isAccessorCandidate: Boolean
