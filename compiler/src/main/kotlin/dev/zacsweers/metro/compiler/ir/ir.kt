@@ -141,6 +141,7 @@ import org.jetbrains.kotlin.ir.util.getSimpleFunction
 import org.jetbrains.kotlin.ir.util.getValueArgument
 import org.jetbrains.kotlin.ir.util.hasAnnotation
 import org.jetbrains.kotlin.ir.util.hasShape
+import org.jetbrains.kotlin.ir.util.isFromJava
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.isStatic
 import org.jetbrains.kotlin.ir.util.kotlinFqName
@@ -1756,6 +1757,10 @@ internal fun IrBuilderWithScope.irGetProperty(
 internal val IrConstructorCall.annotationClass: IrClass
   get() = symbol.owner.parentAsClass
 
-internal fun IrClass.companionObjectOrSelfIfObject(): IrClass {
-  return if (kind.isObject) this else companionObject() ?: this
+internal fun IrClass.companionObjectOrSelfIfObjectOrJava(): IrClass {
+  return when {
+    isFromJava() -> this
+    kind.isObject -> this
+    else -> companionObject() ?: this
+  }
 }
