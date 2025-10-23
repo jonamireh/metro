@@ -14,6 +14,7 @@ import dev.zacsweers.metro.compiler.ir.IrMetroContext
 import dev.zacsweers.metro.compiler.ir.IrTypeKey
 import dev.zacsweers.metro.compiler.ir.assignConstructorParamsToFields
 import dev.zacsweers.metro.compiler.ir.buildAnnotation
+import dev.zacsweers.metro.compiler.ir.companionObjectOrSelfIfObject
 import dev.zacsweers.metro.compiler.ir.createIrBuilder
 import dev.zacsweers.metro.compiler.ir.declaredCallableMembers
 import dev.zacsweers.metro.compiler.ir.finalizeFakeOverride
@@ -194,7 +195,8 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
             } else {
               params.callableId.callableName
             }
-          injectorClass.requireSimpleFunction("inject${name.capitalizeUS().asString()}").owner
+          val creatorsClass = injectorClass.companionObjectOrSelfIfObject()
+          creatorsClass.requireSimpleFunction("inject${name.capitalizeUS().asString()}").owner
         }
 
       return MemberInjectClass(
@@ -226,7 +228,7 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
 
     val companionObject = injectorClass.companionObject()!!
 
-    val memberInjectClass = computeMemberInjectClass(injectorClass, isDagger = true)
+    val memberInjectClass = computeMemberInjectClass(injectorClass, isDagger = false)
     if (isExternal) {
       return memberInjectClass.also { generatedInjectors[injectedClassId] = it }
     }
@@ -387,7 +389,10 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
                         it.backingField?.isAnnotatedWithAny(metroSymbols.injectAnnotations) == true)
                   },
                 )
-                .map { it.memberInjectParameters(nameAllocator, clazz) }
+                .map {
+                  // TODO support fields
+                  it.ir.memberInjectParameters(nameAllocator, clazz)
+                }
                 // Stable sort properties first
                 // TODO this implicit ordering requirement is brittle
                 .sortedBy { !it.isProperty }

@@ -213,7 +213,7 @@ internal fun IrType.rawType(): IrClass {
         when {
           this is IrErrorType -> "Error type encountered: ${dumpKotlinLike()}"
           classifierOrNull is IrTypeParameterSymbol ->
-            "Type parameter encountered: ${dumpKotlinLike()}"
+            "Unexpected type parameter encountered: ${dumpKotlinLike()}"
           else -> "Unrecognized type! ${dumpKotlinLike()} (${classifierOrNull?.javaClass})"
         }
       reportCompilerBug(message)
@@ -653,7 +653,7 @@ internal fun assignConstructorParamsToFields(
           )
           .apply {
             isFinal = true
-            initializer = context.createIrBuilder(symbol).run { irExprBody(irGet(irParameter.ir)) }
+            initializer = context.createIrBuilder(symbol).run { irExprBody(irGet(irParameter.asValueParameter)) }
           }
       put(irParameter, irField)
     }
@@ -1460,6 +1460,7 @@ private fun buildDeepSubstitutionMap(
 
 private class DeepTypeSubstitutor(private val substitutionMap: Map<IrTypeParameterSymbol, IrType>) :
   TypeRemapper {
+  private val mapByName = substitutionMap.mapKeys { it.key.owner.name.identifier }
   private val cache = mutableMapOf<IrType, IrType>()
 
   override fun enterScope(irTypeParametersContainer: IrTypeParametersContainer) {}
@@ -1754,3 +1755,7 @@ internal fun IrBuilderWithScope.irGetProperty(
 
 internal val IrConstructorCall.annotationClass: IrClass
   get() = symbol.owner.parentAsClass
+
+internal fun IrClass.companionObjectOrSelfIfObject(): IrClass {
+  return if (kind.isObject) this else companionObject() ?: this
+}
