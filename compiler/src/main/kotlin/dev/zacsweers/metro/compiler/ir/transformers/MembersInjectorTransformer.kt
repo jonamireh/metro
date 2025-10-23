@@ -13,6 +13,7 @@ import dev.zacsweers.metro.compiler.generatedClass
 import dev.zacsweers.metro.compiler.ir.IrMetroContext
 import dev.zacsweers.metro.compiler.ir.IrTypeKey
 import dev.zacsweers.metro.compiler.ir.assignConstructorParamsToFields
+import dev.zacsweers.metro.compiler.ir.buildAnnotation
 import dev.zacsweers.metro.compiler.ir.createIrBuilder
 import dev.zacsweers.metro.compiler.ir.declaredCallableMembers
 import dev.zacsweers.metro.compiler.ir.finalizeFakeOverride
@@ -75,15 +76,17 @@ import org.jetbrains.kotlin.name.Name
 internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroContext by context {
 
   data class MemberInjectClass(
-    val ir: IrClass,
+    val sourceClass: IrClass,
+    val injectorClass: IrClass,
     val typeKey: IrTypeKey,
     val requiredParametersByClass: Map<ClassId, List<Parameters>>,
     val declaredInjectFunctions: Map<IrSimpleFunction, Parameters>,
+    val isDagger: Boolean,
   ) {
     context(context: IrMetroContext)
     fun mergedParameters(remapper: TypeRemapper): Parameters {
       // $$MembersInjector -> origin class
-      val classTypeParams = ir.parentAsClass.typeParameters.associateBy { it.name }
+      val classTypeParams = sourceClass.typeParameters.associateBy { it.name }
       val allParams =
         declaredInjectFunctions.map { (function, _) ->
           // Need a composite remapper
@@ -104,7 +107,21 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
                 return remapper.remapType(typeParamRemapper.remapType(type))
               }
             }
-          function.parameters(compositeRemapper)
+
+          // In metro-generated injectors, we annotate the instance param with `@Assisted`
+          // so for dagger interop, we transform the matching function to have the same annotation
+          // for logic reuse
+          val toUse =
+            if (isDagger) {
+              function.deepCopyWithSymbols(function.parent).apply {
+                regularParameters[0].annotations +=
+                  buildAnnotation(symbol, context.metroSymbols.assistedConstructor)
+              }
+            } else {
+              function
+            }
+
+          toUse.parameters(compositeRemapper)
         }
       return when (allParams.size) {
         0 -> Parameters.empty()
@@ -181,10 +198,12 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
         }
 
       return MemberInjectClass(
+        declaration,
         injectorClass,
         typeKey,
         injectedMembersByClass,
         declaredInjectFunctions,
+        isDagger,
       )
     }
 
@@ -368,7 +387,7 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
                         it.backingField?.isAnnotatedWithAny(metroSymbols.injectAnnotations) == true)
                   },
                 )
-                .map { it.ir.memberInjectParameters(nameAllocator, clazz) }
+                .map { it.memberInjectParameters(nameAllocator, clazz) }
                 // Stable sort properties first
                 // TODO this implicit ordering requirement is brittle
                 .sortedBy { !it.isProperty }
@@ -396,6 +415,7 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
   }
 
   private fun IrClass.cacheMemberInjectFunctionNames(functionNames: List<String>) {
+    if (isExternalParent) return
     val injectedClass = InjectedClassProto(member_inject_functions = functionNames)
 
     // Store the metadata for this class only
