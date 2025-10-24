@@ -320,7 +320,8 @@ internal class InjectConstructorTransformer(
         if (injectors.isNotEmpty()) {
           val instance = irTemporary(newInstance)
           for (injector in injectors) {
-            val typeArgs = injector.injectorClass.parentAsClass.typeParameters.map { it.defaultType }
+            val typeArgs =
+              injector.injectorClass.parentAsClass.typeParameters.map { it.defaultType }
             for ((function, parameters) in injector.declaredInjectFunctions) {
               // Record for IC
               trackFunctionCall(invokeFunction, function)
@@ -389,7 +390,9 @@ internal class InjectConstructorTransformer(
                 providerFunction = null,
                 sourceMetroParameters = sourceParameters,
                 sourceParameters =
-                  sourceParameters.nonDispatchParameters.filter { it.isAssisted }.map { it.asValueParameter },
+                  sourceParameters.nonDispatchParameters
+                    .filter { it.isAssisted }
+                    .map { it.asValueParameter },
                 targetParameters = invokeFunction.nonDispatchParameters,
                 targetGraphParameter = null,
                 wrapInProvider = false,

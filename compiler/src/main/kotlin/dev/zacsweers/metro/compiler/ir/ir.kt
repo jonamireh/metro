@@ -654,7 +654,10 @@ internal fun assignConstructorParamsToFields(
           )
           .apply {
             isFinal = true
-            initializer = context.createIrBuilder(symbol).run { irExprBody(irGet(irParameter.asValueParameter)) }
+            initializer =
+              context.createIrBuilder(symbol).run {
+                irExprBody(irGet(irParameter.asValueParameter))
+              }
           }
       put(irParameter, irField)
     }

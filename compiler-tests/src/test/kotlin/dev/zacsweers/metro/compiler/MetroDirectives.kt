@@ -74,9 +74,7 @@ object MetroDirectives : SimpleDirectivesContainer() {
 
   // Anvil KSP options
   val ANVIL_GENERATE_DAGGER_FACTORIES by
-    valueDirective("Enable/disable generation of Dagger factories in Anvil KSP.") {
-      it.toBoolean()
-    }
+    valueDirective("Enable/disable generation of Dagger factories in Anvil KSP.") { it.toBoolean() }
   val ANVIL_GENERATE_DAGGER_FACTORIES_ONLY by
     valueDirective(
       "Enable/disable generating only Dagger factories in Anvil KSP, skip component merging. Default is true."
@@ -92,10 +90,10 @@ object MetroDirectives : SimpleDirectivesContainer() {
   val KSP_LOG_SEVERITY by
     valueDirective("KSP logging directive.") { value ->
       when (val upper = value.uppercase(Locale.US)) {
-        "VERBOSE" -> EnumSet.range(CompilerMessageSeverity.EXCEPTION, CompilerMessageSeverity.LOGGING)
+        "VERBOSE" ->
+          EnumSet.range(CompilerMessageSeverity.EXCEPTION, CompilerMessageSeverity.LOGGING)
         else -> EnumSet.of(CompilerMessageSeverity.valueOf(upper))
       }
-
     }
 
   fun enableDaggerRuntime(directives: RegisteredDirectives): Boolean {

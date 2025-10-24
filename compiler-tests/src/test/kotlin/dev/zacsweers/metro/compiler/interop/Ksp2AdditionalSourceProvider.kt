@@ -62,17 +62,21 @@ class Ksp2AdditionalSourceProvider(testServices: TestServices) :
         put("will-have-dagger-factories", daggerCompilerEnabled.toString())
 
         // Handle factory generation options with defaults
-        val generateFactories = if (!daggerCompilerEnabled) {
-          module.directives.singleOrZeroValue(MetroDirectives.ANVIL_GENERATE_DAGGER_FACTORIES)
-            ?: true
-        } else {
-          false
-        }
-        val generateFactoriesOnly = if (generateFactories) {
-          module.directives.singleOrZeroValue(MetroDirectives.ANVIL_GENERATE_DAGGER_FACTORIES_ONLY)
-        } else {
-          false
-        }
+        val generateFactories =
+          if (!daggerCompilerEnabled) {
+            module.directives.singleOrZeroValue(MetroDirectives.ANVIL_GENERATE_DAGGER_FACTORIES)
+              ?: true
+          } else {
+            false
+          }
+        val generateFactoriesOnly =
+          if (generateFactories) {
+            module.directives.singleOrZeroValue(
+              MetroDirectives.ANVIL_GENERATE_DAGGER_FACTORIES_ONLY
+            )
+          } else {
+            false
+          }
 
         put("generate-dagger-factories", generateFactories.toString())
         put("generate-dagger-factories-only", generateFactoriesOnly.toString())
@@ -81,7 +85,8 @@ class Ksp2AdditionalSourceProvider(testServices: TestServices) :
           put("disable-component-merging", it.toString())
         }
 
-        module.directives.singleOrZeroValue(MetroDirectives.ANVIL_EXTRA_CONTRIBUTING_ANNOTATIONS)
+        module.directives
+          .singleOrZeroValue(MetroDirectives.ANVIL_EXTRA_CONTRIBUTING_ANNOTATIONS)
           ?.let { put("anvil-ksp-extraContributingAnnotations", it) }
       }
     }
@@ -154,10 +159,11 @@ class Ksp2AdditionalSourceProvider(testServices: TestServices) :
         }
       }
     } finally {
-      val reportToCompilerSeverity = module.directives[MetroDirectives.KSP_LOG_SEVERITY]
-        .flatten()
-        .ifEmpty { EnumSet.of(CompilerMessageSeverity.ERROR, CompilerMessageSeverity.EXCEPTION) }
-        .let { EnumSet.copyOf(it) }
+      val reportToCompilerSeverity =
+        module.directives[MetroDirectives.KSP_LOG_SEVERITY]
+          .flatten()
+          .ifEmpty { EnumSet.of(CompilerMessageSeverity.ERROR, CompilerMessageSeverity.EXCEPTION) }
+          .let { EnumSet.copyOf(it) }
       logger.reportAll(reportToCompilerSeverity)
     }
 

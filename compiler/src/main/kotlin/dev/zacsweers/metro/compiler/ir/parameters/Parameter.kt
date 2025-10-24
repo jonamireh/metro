@@ -71,10 +71,12 @@ private constructor(
     get() {
       return when (ir) {
         is IrValueParameter -> ir
-        is IrProperty -> ir.setter?.nonDispatchParameters?.single()
-          ?: reportCompilerBug("No getter for property $ir")
-        is IrFunction -> ir.nonDispatchParameters.singleOrNull()
-          ?: reportCompilerBug("No or too many value parameters for function $ir")
+        is IrProperty ->
+          ir.setter?.nonDispatchParameters?.single()
+            ?: reportCompilerBug("No getter for property $ir")
+        is IrFunction ->
+          ir.nonDispatchParameters.singleOrNull()
+            ?: reportCompilerBug("No or too many value parameters for function $ir")
         else -> reportCompilerBug("Not a value parameter! Was $ir")
       }
     }

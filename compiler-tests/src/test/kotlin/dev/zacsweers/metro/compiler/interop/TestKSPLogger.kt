@@ -66,7 +66,10 @@ internal class TestKSPLogger(
       }
     }
     if (errorReported) {
-      messageCollector.report(CompilerMessageSeverity.ERROR, "Error occurred in KSP, check log for detail")
+      messageCollector.report(
+        CompilerMessageSeverity.ERROR,
+        "Error occurred in KSP, check log for detail",
+      )
     }
   }
 }
