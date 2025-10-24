@@ -1159,6 +1159,12 @@ public class BoxTestGenerated extends AbstractBoxTest {
       }
 
       @Test
+      @TestMetadata("DaggerMemberInjectorCanBeLoadedFromKotlin.kt")
+      public void testDaggerMemberInjectorCanBeLoadedFromKotlin() {
+        runTest("compiler-tests/src/test/data/box/interop/dagger/DaggerMemberInjectorCanBeLoadedFromKotlin.kt");
+      }
+
+      @Test
       @TestMetadata("DaggerModulesAnnotationInterop.kt")
       public void testDaggerModulesAnnotationInterop() {
         runTest("compiler-tests/src/test/data/box/interop/dagger/DaggerModulesAnnotationInterop.kt");
