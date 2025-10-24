@@ -30,7 +30,7 @@ public class ExampleClass {
 
 // MODULE: main(lib)
 // FILE: DependencyImpl.kt
-import javax.inject.Named;
+import javax.inject.Named
 
 @ContributesBinding(AppScope::class)
 @Named("dependency")
