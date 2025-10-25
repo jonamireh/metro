@@ -1,7 +1,7 @@
-// ENABLE_DAGGER_KSP
-// ENABLE_DAGGER_INTEROP
-
 // MODULE: lib
+// ENABLE_DAGGER_KSP
+// DISABLE_METRO
+
 // FILE: Dependency.java
 public interface Dependency {
 }
@@ -29,11 +29,12 @@ public class ExampleClass {
 }
 
 // MODULE: main(lib)
+// ENABLE_DAGGER_INTEROP
+
 // FILE: DependencyImpl.kt
 import javax.inject.Named
 
 @ContributesBinding(AppScope::class)
-@Named("dependency")
 class DependencyImpl @Inject constructor() : Dependency
 
 // FILE: ExampleInjector.kt
@@ -43,9 +44,12 @@ interface ExampleInjector {
 }
 
 // FILE: ExampleGraph.kt
+import javax.inject.Named
+
 @DependencyGraph(AppScope::class)
 interface ExampleGraph {
   @Provides fun provideString(): String = "Hello"
+  @Binds @Named("dependency") fun Dependency.bind(): Dependency
 }
 
 fun box(): String {
