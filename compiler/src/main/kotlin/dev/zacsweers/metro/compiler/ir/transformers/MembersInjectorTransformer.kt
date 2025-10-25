@@ -574,11 +574,14 @@ internal class MembersInjectorTransformer(context: IrMetroContext) : IrMetroCont
               function.qualifierAnnotation()
             } else {
               // Setter/method injection: look up the actual member Parameters and extract qualifier
-              val sourceMemberParams = sourceMemberParametersMap.value[memberName] ?: reportCompilerBug(
-                """
+              val sourceMemberParams =
+                sourceMemberParametersMap.value[memberName]
+                  ?: reportCompilerBug(
+                    """
                   Could not find corresponding injected member '$memberName' in ${clazz.fqNameWhenAvailable} for inject method ${function.name}.
-                """.trimIndent()
-              )
+                """
+                      .trimIndent()
+                  )
               sourceMemberParams.regularParameters[index].typeKey.qualifier
             }
           } else {
