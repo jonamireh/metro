@@ -17,12 +17,12 @@ public class ExampleClass {
   String setterDep3 = null;
 
   // Setter injection
-  @Inject public void setterInject(Dependency dep) {
+  @Inject public void setterInject(@Named("dependency") Dependency dep) {
     this.setterDep = dep;
   }
 
   // Setter injection
-  @Inject public void setterInject2(Dependency dep, String stringDep) {
+  @Inject public void setterInject2(@Named("dependency") Dependency dep, String stringDep) {
     this.setterDep2 = dep;
     this.setterDep3 = stringDep;
   }
@@ -32,9 +32,6 @@ public class ExampleClass {
 // ENABLE_DAGGER_INTEROP
 
 // FILE: DependencyImpl.kt
-import javax.inject.Named
-
-@ContributesBinding(AppScope::class)
 class DependencyImpl @Inject constructor() : Dependency
 
 // FILE: ExampleInjector.kt
@@ -49,7 +46,7 @@ import javax.inject.Named
 @DependencyGraph(AppScope::class)
 interface ExampleGraph {
   @Provides fun provideString(): String = "Hello"
-  @Binds @Named("dependency") fun Dependency.bind(): Dependency
+  @Binds @Named("dependency") fun DependencyImpl.bind(): Dependency
 }
 
 fun box(): String {
