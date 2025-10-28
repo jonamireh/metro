@@ -754,7 +754,8 @@ internal class IrGraphGenerator(
                 trackFunctionCall(this@apply, function)
                 +irInvoke(
                   callee = function.symbol,
-                  typeArgs = targetParam.type.requireSimpleType(targetParam).arguments.map { it.typeOrFail },
+                  typeArgs =
+                    targetParam.type.requireSimpleType(targetParam).arguments.map { it.typeOrFail },
                   args =
                     buildList {
                       add(irGet(targetParam))
