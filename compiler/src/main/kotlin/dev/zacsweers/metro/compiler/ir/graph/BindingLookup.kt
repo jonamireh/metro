@@ -13,6 +13,7 @@ import dev.zacsweers.metro.compiler.ir.asMemberOf
 import dev.zacsweers.metro.compiler.ir.deepRemapperFor
 import dev.zacsweers.metro.compiler.ir.parameters.parameters
 import dev.zacsweers.metro.compiler.ir.rawType
+import dev.zacsweers.metro.compiler.ir.remapTypes
 import dev.zacsweers.metro.compiler.ir.reportCompat
 import dev.zacsweers.metro.compiler.ir.requireSimpleType
 import dev.zacsweers.metro.compiler.ir.singleAbstractFunction
