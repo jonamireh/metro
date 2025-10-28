@@ -22,7 +22,7 @@ public class ExampleClass {
   }
 
   // Setter injection
-  @Inject public void setterInject2(@Named("dependency") Dependency dep, String stringDep) {
+  @Inject public void setterInject2(@Named("dependency") Dependency dep, @Named("qualified") String stringDep) {
     this.setterDep2 = dep;
     this.setterDep3 = stringDep;
   }
@@ -32,21 +32,21 @@ public class ExampleClass {
 // ENABLE_DAGGER_INTEROP
 
 // FILE: DependencyImpl.kt
-class DependencyImpl @Inject constructor() : Dependency
+import javax.inject.Named
 
-// FILE: ExampleInjector.kt
-@ContributesTo(AppScope::class)
-interface ExampleInjector {
-  fun inject(example: ExampleClass)
-}
+@ContributesBinding(AppScope::class)
+@Named("dependency")
+@Inject
+class DependencyImpl : Dependency
 
 // FILE: ExampleGraph.kt
 import javax.inject.Named
 
 @DependencyGraph(AppScope::class)
 interface ExampleGraph {
-  @Provides fun provideString(): String = "Hello"
-  @Binds @Named("dependency") fun DependencyImpl.bind(): Dependency
+  @Provides @Named("qualified") fun provideString(): String = "Hello"
+
+  fun inject(example: ExampleClass)
 }
 
 fun box(): String {

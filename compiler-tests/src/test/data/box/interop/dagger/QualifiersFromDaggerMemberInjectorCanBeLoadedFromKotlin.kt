@@ -35,19 +35,23 @@ class ExampleClass {
 // ENABLE_DAGGER_INTEROP
 
 // FILE: DependencyImpl.kt
-class DependencyImpl @Inject constructor() : Dependency
+import javax.inject.Named
+
+@ContributesBinding(AppScope::class)
+@Inject
+@Named("dependency")
+class DependencyImpl : Dependency
 
 // FILE: ExampleInjector.kt
 @ContributesTo(AppScope::class)
 interface ExampleInjector {
-    fun inject(example: ExampleClass)
+  fun inject(example: ExampleClass)
 }
 
 // FILE: ExampleGraph.kt
 @DependencyGraph(AppScope::class)
 interface ExampleGraph {
   @Provides fun provideString(): String = "Hello"
-  @Binds @Named("dependency") fun DependencyImpl.bind(): Dependency
 }
 
 fun box(): String {
