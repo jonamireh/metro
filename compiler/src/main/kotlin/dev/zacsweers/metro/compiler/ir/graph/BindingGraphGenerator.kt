@@ -782,6 +782,9 @@ internal class BindingGraphGenerator(
             targetClassId = targetClass.classIdOrFail,
           )
 
+        // Cache in BindingLookup to avoid re-creating it later
+        bindingLookup.putBinding(binding)
+
         graph.addBinding(contextKey.typeKey, binding, bindingStack)
 
         // Ensure that we traverse the target class's superclasses and lookup relevant bindings for
