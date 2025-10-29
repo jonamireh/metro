@@ -1819,7 +1819,7 @@ class ICTests : BaseIncrementalCompilationTest() {
         .trimIndent(),
     )
 
-    // Update asContribution parameterized type
+    // Update asContribution type argument
     project.modify(
       fixture.main,
       """
@@ -1905,7 +1905,7 @@ class ICTests : BaseIncrementalCompilationTest() {
         .trimIndent(),
     )
 
-    // Update asContribution parameterized type
+    // Update asContribution type argument
     project.modify(
       fixture.main,
       """
