@@ -1730,4 +1730,109 @@ class ICTests : BaseIncrementalCompilationTest() {
 
     buildAndAssertOutput()
   }
+
+  @Test
+  fun graphExtensionFactoryContributionChangeIsDetected() {
+    val fixture =
+      object : MetroProject() {
+        override fun sources() = throw IllegalStateException()
+
+        override val gradleProject: GradleProject
+          get() =
+            newGradleProjectBuilder(DslKind.KOTLIN)
+              .withRootProject {
+                withBuildScript {
+                  sources = listOf(main)
+                  applyMetroDefault()
+                  dependencies(Dependency.implementation(":lib"))
+                }
+              }
+              .withSubproject("lib") {
+                sources.add(appGraph)
+                sources.add(featureGraph)
+                withBuildScript { applyMetroDefault() }
+              }
+              .write()
+
+        private val appGraph =
+          source(
+            """
+      @DependencyGraph(Unit::class)
+      interface AppGraph
+      """
+          )
+
+        val main =
+          source(
+            """
+                    fun main() {
+                        val appGraph = createGraph<AppGraph>()
+                        val featureGraph = appGraph.asContribution<FeatureGraph.ParentBindings>().featureGraphFactory.create()
+                    }
+                """
+          )
+
+        val featureGraph =
+          source(
+            """
+      @GraphExtension(String::class)
+      interface FeatureGraph {
+          @GraphExtension.Factory
+          interface Factory {
+              fun create(): FeatureGraph
+          }
+
+          @ContributesTo(Unit::class)
+          interface ParentBindings {
+              val featureGraphFactory: FeatureGraph.Factory
+          }
+      }
+      """
+          )
+      }
+
+    val project = fixture.gradleProject
+    val libProject = project.subprojects.first { it.name == "lib" }
+
+    // First build should succeed
+    val firstBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(firstBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+
+    // Modify the FeatureGraph class to contribute the factory directly but leave ParentBindings
+    libProject.modify(
+      project.rootDir,
+      fixture.featureGraph,
+      """
+      @GraphExtension(String::class)
+      interface FeatureGraph {
+          @GraphExtension.Factory
+          @ContributesTo(Unit::class)
+          interface Factory {
+              fun create(): FeatureGraph
+          }
+
+          interface ParentBindings {
+              val featureGraphFactory: FeatureGraph.Factory
+          }
+      }
+      """
+        .trimIndent(),
+    )
+
+    // Update asContribution parameterized type
+    project.modify(
+      fixture.main,
+      """
+      fun main() {
+          val appGraph = createGraph<AppGraph>()
+          val featureGraph = appGraph.asContribution<FeatureGraph.Factory>().create()
+      }
+      """
+        .trimIndent(),
+    )
+
+    // Second build is still marked as success so we have to check the output
+    val secondBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(secondBuildResult.output).doesNotContain("Incremental compilation failed")
+  }
 }
