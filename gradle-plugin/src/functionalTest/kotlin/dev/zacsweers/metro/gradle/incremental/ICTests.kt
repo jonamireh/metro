@@ -1836,33 +1836,33 @@ class ICTests : BaseIncrementalCompilationTest() {
     assertThat(secondBuildResult.output).doesNotContain("Incremental compilation failed")
   }
 
-    @Test
-    fun graphExtensionFactoryContributionInternalChangeIsDetected() {
-        val fixture =
-            object : MetroProject() {
-                override fun sources() = listOf(main, appGraph, featureGraph)
+  @Test
+  fun graphExtensionFactoryContributionInternalChangeIsDetected() {
+    val fixture =
+      object : MetroProject() {
+        override fun sources() = listOf(main, appGraph, featureGraph)
 
-                private val appGraph =
-                    source(
-                        """
+        private val appGraph =
+          source(
+            """
       @DependencyGraph(Unit::class)
       interface AppGraph
       """
-                    )
+          )
 
-                val main =
-                    source(
-                        """
+        val main =
+          source(
+            """
                     fun main() {
                         val appGraph = createGraph<AppGraph>()
                         val featureGraph = appGraph.asContribution<FeatureGraph.ParentBindings>().featureGraphFactory.create()
                     }
                 """
-                    )
+          )
 
-                val featureGraph =
-                    source(
-                        """
+        val featureGraph =
+          source(
+            """
       @GraphExtension(String::class)
       interface FeatureGraph {
           @GraphExtension.Factory
@@ -1876,19 +1876,19 @@ class ICTests : BaseIncrementalCompilationTest() {
           }
       }
       """
-                    )
-            }
+          )
+      }
 
-        val project = fixture.gradleProject
+    val project = fixture.gradleProject
 
-        // First build should succeed
-        val firstBuildResult = build(project.rootDir, "compileKotlin")
-        assertThat(firstBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    // First build should succeed
+    val firstBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(firstBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
 
-        // Modify the FeatureGraph class to contribute the factory directly but leave ParentBindings
-        project.modify(
-            fixture.featureGraph,
-            """
+    // Modify the FeatureGraph class to contribute the factory directly but leave ParentBindings
+    project.modify(
+      fixture.featureGraph,
+      """
       @GraphExtension(String::class)
       interface FeatureGraph {
           @GraphExtension.Factory
@@ -1902,23 +1902,23 @@ class ICTests : BaseIncrementalCompilationTest() {
           }
       }
       """
-                .trimIndent(),
-        )
+        .trimIndent(),
+    )
 
-        // Update asContribution parameterized type
-        project.modify(
-            fixture.main,
-            """
+    // Update asContribution parameterized type
+    project.modify(
+      fixture.main,
+      """
       fun main() {
           val appGraph = createGraph<AppGraph>()
           val featureGraph = appGraph.asContribution<FeatureGraph.Factory>().create()
       }
       """
-                .trimIndent(),
-        )
+        .trimIndent(),
+    )
 
-        // Second build is still marked as success so we have to check the output
-        val secondBuildResult = build(project.rootDir, "compileKotlin")
-        assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    }
+    // Second build is still marked as success so we have to check the output
+    val secondBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+  }
 }
