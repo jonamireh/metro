@@ -131,14 +131,14 @@ fun Class<*>.providesFactoryClass(
 
   if (providerCallableName != null) {
     assertWithMessage(
-      "The name '$providerCallableName' must match a callable annotated with @Provides"
-    )
+        "The name '$providerCallableName' must match a callable annotated with @Provides"
+      )
       .that(providesCallables)
       .contains(providerCallableName)
   } else {
     assertWithMessage(
-      "You must specify a providerCallableName value when there is more than one @Provides callable"
-    )
+        "You must specify a providerCallableName value when there is more than one @Provides callable"
+      )
       .that(providesCallables)
       .hasSize(1)
   }

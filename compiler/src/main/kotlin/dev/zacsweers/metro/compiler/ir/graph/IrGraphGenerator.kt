@@ -258,13 +258,7 @@ internal class IrGraphGenerator(
           typeKey,
           getOrCreateBindingProperty(
               typeKey,
-              {
-                name
-                  .asString()
-                  .decapitalizeUS()
-                  .suffixIfNot("Instance")
-                  .suffixIfNot("Provider")
-              },
+              { name.asString().decapitalizeUS().suffixIfNot("Instance").suffixIfNot("Provider") },
               { metroSymbols.metroProvider.typeWith(typeKey.type) },
               propertyType,
             )

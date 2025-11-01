@@ -154,9 +154,12 @@ internal class ContributionTransformer(private val context: IrMetroContext) :
     // Add fake overrides. This should only add missing ones
     declaration.addFakeOverrides(irTypeSystemContext)
     if (!declaration.isAnnotatedWithAny(metroSymbols.classIds.graphExtensionAnnotations)) {
-      // Only DependencyGraph classes have an FIR-generated graph impl. ContributesGraphExtension will get
+      // Only DependencyGraph classes have an FIR-generated graph impl. ContributesGraphExtension
+      // will get
       // implemented later in IR
-      declaration.requireNestedClass(Origins.GraphImplClassDeclaration).addFakeOverrides(irTypeSystemContext)
+      declaration
+        .requireNestedClass(Origins.GraphImplClassDeclaration)
+        .addFakeOverrides(irTypeSystemContext)
     }
     declaration.dumpToMetroLog()
   }

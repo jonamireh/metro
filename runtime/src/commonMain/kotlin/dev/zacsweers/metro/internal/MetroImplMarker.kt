@@ -3,7 +3,8 @@
 package dev.zacsweers.metro.internal
 
 /**
- * Marker annotation for generated Metro impl classes. Useful for Metro to discover classes across compilations.
+ * Marker annotation for generated Metro impl classes. Useful for Metro to discover classes across
+ * compilations.
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)

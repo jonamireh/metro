@@ -36,7 +36,6 @@ import dev.zacsweers.metro.compiler.ir.trackMemberDeclarationCall
 import dev.zacsweers.metro.compiler.ir.transformMultiboundQualifier
 import dev.zacsweers.metro.compiler.ir.transformers.InjectConstructorTransformer
 import dev.zacsweers.metro.compiler.ir.transformers.MembersInjectorTransformer
-import dev.zacsweers.metro.compiler.isGraphImpl
 import dev.zacsweers.metro.compiler.reportCompilerBug
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
@@ -624,7 +623,10 @@ internal class BindingGraphGenerator(
         val irGetter = getter.ir
         val parentClass = irGetter.parentAsClass
         val getterToUse =
-          if (irGetter.overriddenSymbols.isNotEmpty() && parentClass.sourceGraphIfMetroGraph != parentClass) {
+          if (
+            irGetter.overriddenSymbols.isNotEmpty() &&
+              parentClass.sourceGraphIfMetroGraph != parentClass
+          ) {
             // Use the original graph decl so we don't tie this invocation to any impls
             // specifically
             irGetter.overriddenSymbolsSequence().firstOrNull()?.owner
@@ -705,7 +707,8 @@ internal class BindingGraphGenerator(
 
         // Register a lazy parent key that will only call mark() when actually used
         bindingLookup.addLazyParentKey(key) {
-          val propertyAccess = parentContext.mark(key) ?: reportCompilerBug("Missing parent key $key")
+          val propertyAccess =
+            parentContext.mark(key) ?: reportCompilerBug("Missing parent key $key")
 
           // Record a lookup for IC when the binding is actually created
           val propertyParentClass = propertyAccess.property.parentAsClass

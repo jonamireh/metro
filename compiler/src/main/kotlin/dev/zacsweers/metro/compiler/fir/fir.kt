@@ -732,9 +732,9 @@ internal fun createDeprecatedHiddenAnnotation(session: FirSession): FirAnnotatio
       // way.
       mapping[Name.identifier("level")] =
         buildEnumEntryDeserializedAccessExpression {
-          enumClassId = StandardClassIds.DeprecationLevel
-          enumEntryName = Name.identifier("HIDDEN")
-        }
+            enumClassId = StandardClassIds.DeprecationLevel
+            enumEntryName = Name.identifier("HIDDEN")
+          }
           .toQualifiedPropertyAccessExpression(session)
     }
   }
@@ -742,9 +742,7 @@ internal fun createDeprecatedHiddenAnnotation(session: FirSession): FirAnnotatio
 internal fun FirClassLikeDeclaration.markImpl(session: FirSession) {
   replaceAnnotations(
     annotations +
-    listOf(
-      buildSimpleAnnotation { session.metroFirBuiltIns.metroImplMarkerClassSymbol }
-    )
+      listOf(buildSimpleAnnotation { session.metroFirBuiltIns.metroImplMarkerClassSymbol })
   )
 }
 
@@ -846,7 +844,7 @@ internal fun FirCallableSymbol<*>.findAnnotation(
     is FirBackingFieldSymbol -> {
       return propertySymbol.findAnnotation(session, findAnnotation, this)
     }
-    // else it's a function, covered by the above
+  // else it's a function, covered by the above
   }
   return null
 }
@@ -875,9 +873,9 @@ internal fun FirAnnotation.includesArgument() = arrayArgument(Symbols.Names.incl
 
 internal fun FirAnnotation.allScopeClassIds(): Set<ClassId> =
   buildSet {
-    resolvedScopeClassId()?.let(::add)
-    resolvedAdditionalScopesClassIds()?.let(::addAll)
-  }
+      resolvedScopeClassId()?.let(::add)
+      resolvedAdditionalScopesClassIds()?.let(::addAll)
+    }
     .filterNotTo(mutableSetOf()) { it == StandardClassIds.Nothing }
 
 internal fun FirAnnotation.excludesArgument() = arrayArgument(Symbols.Names.excludes, index = 2)
@@ -1190,12 +1188,12 @@ internal fun FirClass.isOrImplements(supertype: ClassId, session: FirSession): B
 
 internal fun FirClass.implements(supertype: ClassId, session: FirSession): Boolean {
   return lookupSuperTypes(
-    klass = this,
-    lookupInterfaces = true,
-    deep = true,
-    useSiteSession = session,
-    substituteTypes = true,
-  )
+      klass = this,
+      lookupInterfaces = true,
+      deep = true,
+      useSiteSession = session,
+      substituteTypes = true,
+    )
     .any { it.classId?.let { it == supertype } == true }
 }
 
@@ -1206,12 +1204,12 @@ internal fun FirClassSymbol<*>.isOrImplements(supertype: ClassId, session: FirSe
 
 internal fun FirClassSymbol<*>.implements(supertype: ClassId, session: FirSession): Boolean {
   return lookupSuperTypes(
-    symbols = listOf(this),
-    lookupInterfaces = true,
-    deep = true,
-    useSiteSession = session,
-    substituteTypes = true,
-  )
+      symbols = listOf(this),
+      lookupInterfaces = true,
+      deep = true,
+      useSiteSession = session,
+      substituteTypes = true,
+    )
     .any { it.classId?.let { it == supertype } == true }
 }
 
@@ -1388,7 +1386,7 @@ internal fun FirClassLikeSymbol<*>.bindingContainerErrorMessage(
     "Inner class '${classId.shortClassName}' cannot be a binding container."
   } else if (
     !alreadyCheckedAnnotation &&
-    !isAnnotatedWithAny(session, session.metroFirBuiltIns.classIds.bindingContainerAnnotations)
+      !isAnnotatedWithAny(session, session.metroFirBuiltIns.classIds.bindingContainerAnnotations)
   ) {
     "'${classId.asFqNameString()}' is not annotated with a `@BindingContainer` annotation."
   } else {

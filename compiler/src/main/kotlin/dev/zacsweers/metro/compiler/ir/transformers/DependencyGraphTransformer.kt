@@ -610,9 +610,7 @@ internal class DependencyGraphTransformer(
 
       // Implement the factory's `Impl` class if present
       val factoryImpl =
-        factoryCreator.type
-          .requireNestedClass(Symbols.Names.Impl)
-          .apply(implementFactoryFunction)
+        factoryCreator.type.requireNestedClass(Symbols.Names.Impl).apply(implementFactoryFunction)
 
       if (
         factoryCreator.type.isInterface &&

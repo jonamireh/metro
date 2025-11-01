@@ -16,7 +16,6 @@ import dev.zacsweers.metro.compiler.ir.ProviderFactory
 import dev.zacsweers.metro.compiler.ir.metroGraphOrNull
 import dev.zacsweers.metro.compiler.ir.parameters.Parameters
 import dev.zacsweers.metro.compiler.ir.sourceGraphIfMetroGraph
-import dev.zacsweers.metro.compiler.isGraphImpl
 import dev.zacsweers.metro.compiler.mapNotNullToSet
 import dev.zacsweers.metro.compiler.mapToSet
 import dev.zacsweers.metro.compiler.memoize
@@ -98,8 +97,7 @@ internal data class DependencyGraphNode(
     generateSequence(sourceGraph) { it.parentAsClass }
       .firstOrNull {
         // Skip impl graphs
-        it.sourceGraphIfMetroGraph == it &&
-          it.fileOrNull != null
+        it.sourceGraphIfMetroGraph == it && it.fileOrNull != null
       }
       ?: reportCompilerBug(
         "Could not find a reportable source graph declaration for ${sourceGraph.kotlinFqName}"

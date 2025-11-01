@@ -1062,11 +1062,11 @@ private fun IrSimpleType.patchMutableCollections(): IrSimpleType {
 internal val IrProperty.allAnnotations: List<IrConstructorCall>
   get() {
     return buildList {
-      addAll(annotations)
-      getter?.let { addAll(it.annotations) }
-      setter?.let { addAll(it.annotations) }
-      backingField?.let { addAll(it.annotations) }
-    }
+        addAll(annotations)
+        getter?.let { addAll(it.annotations) }
+        setter?.let { addAll(it.annotations) }
+        backingField?.let { addAll(it.annotations) }
+      }
       .distinct()
   }
 
@@ -1203,11 +1203,12 @@ internal val IrClass.metroGraphOrNull: IrClass?
 
 internal val IrClass.sourceGraphIfMetroGraph: IrClass
   get() {
-    val isGeneratedGraph = if (isExternalParent) {
-      hasAnnotation(Symbols.ClassIds.metroImplMarker)
-    } else {
-      origin.isGraphImpl
-    }
+    val isGeneratedGraph =
+      if (isExternalParent) {
+        hasAnnotation(Symbols.ClassIds.metroImplMarker)
+      } else {
+        origin.isGraphImpl
+      }
     return if (isGeneratedGraph) {
       superTypes.firstOrNull()?.rawTypeOrNull()
         ?: reportCompilerBug("No super type found for $kotlinFqName")
@@ -1223,9 +1224,9 @@ internal fun hiddenDeprecated(
   message: String = "This synthesized declaration should not be used directly"
 ): IrConstructorCall {
   return IrConstructorCallImpl.fromSymbolOwner(
-    type = context.metroSymbols.deprecated.defaultType,
-    constructorSymbol = context.metroSymbols.deprecatedAnnotationConstructor,
-  )
+      type = context.metroSymbols.deprecated.defaultType,
+      constructorSymbol = context.metroSymbols.deprecatedAnnotationConstructor,
+    )
     .also {
       it.arguments[0] =
         IrConstImpl.string(
@@ -1682,7 +1683,8 @@ internal fun IrConstructorCall.bindingTypeOrNull(): Pair<IrType?, Boolean> {
 
 context(context: IrPluginContext)
 internal fun IrConstructorCall.bindingTypeArgument(): IrType? {
-  return getValueArgument(Symbols.Names.binding)?.expectAsOrNull<IrConstructorCall>()?.let { bindingType ->
+  return getValueArgument(Symbols.Names.binding)?.expectAsOrNull<IrConstructorCall>()?.let {
+    bindingType ->
     bindingType.typeArguments.getOrNull(0)?.takeUnless { it == context.irBuiltIns.nothingType }
   }
 }
