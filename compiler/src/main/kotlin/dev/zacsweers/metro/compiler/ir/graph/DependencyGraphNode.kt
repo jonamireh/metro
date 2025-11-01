@@ -15,6 +15,7 @@ import dev.zacsweers.metro.compiler.ir.MultibindsCallable
 import dev.zacsweers.metro.compiler.ir.ProviderFactory
 import dev.zacsweers.metro.compiler.ir.metroGraphOrNull
 import dev.zacsweers.metro.compiler.ir.parameters.Parameters
+import dev.zacsweers.metro.compiler.ir.sourceGraphIfMetroGraph
 import dev.zacsweers.metro.compiler.isGraphImpl
 import dev.zacsweers.metro.compiler.mapNotNullToSet
 import dev.zacsweers.metro.compiler.mapToSet
@@ -95,7 +96,11 @@ internal data class DependencyGraphNode(
 
   val reportableSourceGraphDeclaration by memoize {
     generateSequence(sourceGraph) { it.parentAsClass }
-      .firstOrNull { !it.origin.isGraphImpl && it.fileOrNull != null }
+      .firstOrNull {
+        // Skip impl graphs
+        it.sourceGraphIfMetroGraph == it &&
+          it.fileOrNull != null
+      }
       ?: reportCompilerBug(
         "Could not find a reportable source graph declaration for ${sourceGraph.kotlinFqName}"
       )

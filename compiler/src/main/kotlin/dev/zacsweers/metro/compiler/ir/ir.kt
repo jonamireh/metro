@@ -3,6 +3,7 @@
 package dev.zacsweers.metro.compiler.ir
 
 import dev.zacsweers.metro.compiler.MetroAnnotations
+import dev.zacsweers.metro.compiler.Origins
 import dev.zacsweers.metro.compiler.Symbols
 import dev.zacsweers.metro.compiler.Symbols.DaggerSymbols
 import dev.zacsweers.metro.compiler.compat.CompatContext
@@ -215,6 +216,7 @@ internal fun IrType.rawType(): IrClass {
           this is IrErrorType -> "Error type encountered: ${dumpKotlinLike()}"
           classifierOrNull is IrTypeParameterSymbol ->
             "Unexpected type parameter encountered: ${dumpKotlinLike()}"
+
           else -> "Unrecognized type! ${dumpKotlinLike()} (${classifierOrNull?.javaClass})"
         }
       reportCompilerBug(message)
@@ -369,7 +371,7 @@ internal fun IrConstructorCall.computeAnnotationHash(): Int {
       .mapIndexed { i, arg ->
         arg.computeHashSource()
           ?: reportCompilerBug(
-            "Unknown annotation argument type: ${arg::class.java }. Annotation: ${dumpKotlinLike()}"
+            "Unknown annotation argument type: ${arg::class.java}. Annotation: ${dumpKotlinLike()}"
           )
       }
       .toTypedArray()
@@ -935,6 +937,7 @@ internal fun IrType.renderTo(
       // TODO IrErrorType.symbol?
       appendable.append("<error>")
     }
+
     is IrSimpleType -> {
       val name =
         when (val classifier = type.classifier) {
@@ -944,8 +947,10 @@ internal fun IrType.renderTo(
             } else {
               classifier.owner.kotlinFqName.asString()
             }
+
           is IrScriptSymbol ->
             reportCompilerBug("No simple name for script symbol: ${type.dumpKotlinLike()}")
+
           is IrTypeParameterSymbol -> {
             classifier.owner.name.asString()
           }
@@ -967,6 +972,7 @@ internal fun IrType.renderTo(
                 Variance.INVARIANT -> {
                   // do nothing
                 }
+
                 Variance.IN_VARIANCE -> appendable.append("in ")
                 Variance.OUT_VARIANCE -> appendable.append("out ")
               }
@@ -1056,11 +1062,11 @@ private fun IrSimpleType.patchMutableCollections(): IrSimpleType {
 internal val IrProperty.allAnnotations: List<IrConstructorCall>
   get() {
     return buildList {
-        addAll(annotations)
-        getter?.let { addAll(it.annotations) }
-        setter?.let { addAll(it.annotations) }
-        backingField?.let { addAll(it.annotations) }
-      }
+      addAll(annotations)
+      getter?.let { addAll(it.annotations) }
+      setter?.let { addAll(it.annotations) }
+      backingField?.let { addAll(it.annotations) }
+    }
       .distinct()
   }
 
@@ -1089,19 +1095,25 @@ internal fun IrClass.requireNestedClass(name: Name): IrClass {
     )
 }
 
+internal fun IrClass.requireNestedClass(origin: IrDeclarationOrigin): IrClass {
+  return nestedClassOrNull(origin)
+    ?: reportCompilerBug(
+      "No nested class with origin '$origin' in $classId. Found ${nestedClasses.map { it.name }}"
+    )
+}
+
 internal fun IrClass.nestedClassOrNull(name: Name): IrClass? {
   return nestedClasses.firstOrNull { it.name == name }
+}
+
+internal fun IrClass.nestedClassOrNull(origin: IrDeclarationOrigin): IrClass? {
+  return nestedClasses.firstOrNull { it.origin == origin }
 }
 
 internal fun <T : IrOverridableDeclaration<*>> T.resolveOverriddenTypeIfAny(): T {
   @Suppress("UNCHECKED_CAST")
   return overriddenSymbols.singleOrNull()?.owner as? T? ?: this
 }
-
-internal val IrClass.isMetroGenerated: Boolean
-  get() {
-    return name in Symbols.Names.metroNames
-  }
 
 internal fun IrOverridableDeclaration<*>.finalizeFakeOverride(
   dispatchReceiverParameter: IrValueParameter
@@ -1173,11 +1185,29 @@ internal val IrClass.metroGraphOrFail: IrClass
   get() = metroGraphOrNull ?: reportCompilerBug("No generated MetroGraph found: $classId")
 
 internal val IrClass.metroGraphOrNull: IrClass?
-  get() = if (origin.isGraphImpl) this else nestedClassOrNull(Symbols.Names.MetroGraph)
+  get() {
+    return if (isExternalParent) {
+      if (hasAnnotation(Symbols.ClassIds.metroImplMarker)) {
+        this
+      } else {
+        nestedClasses.firstOrNull { it.hasAnnotation(Symbols.ClassIds.metroImplMarker) }
+      }
+    } else {
+      if (origin.isGraphImpl) {
+        this
+      } else {
+        nestedClassOrNull(Origins.GraphImplClassDeclaration)
+      }
+    }
+  }
 
 internal val IrClass.sourceGraphIfMetroGraph: IrClass
   get() {
-    val isGeneratedGraph = name == Symbols.Names.MetroGraph || origin.isGraphImpl
+    val isGeneratedGraph = if (isExternalParent) {
+      hasAnnotation(Symbols.ClassIds.metroImplMarker)
+    } else {
+      origin.isGraphImpl
+    }
     return if (isGeneratedGraph) {
       superTypes.firstOrNull()?.rawTypeOrNull()
         ?: reportCompilerBug("No super type found for $kotlinFqName")
@@ -1193,9 +1223,9 @@ internal fun hiddenDeprecated(
   message: String = "This synthesized declaration should not be used directly"
 ): IrConstructorCall {
   return IrConstructorCallImpl.fromSymbolOwner(
-      type = context.metroSymbols.deprecated.defaultType,
-      constructorSymbol = context.metroSymbols.deprecatedAnnotationConstructor,
-    )
+    type = context.metroSymbols.deprecated.defaultType,
+    constructorSymbol = context.metroSymbols.deprecatedAnnotationConstructor,
+  )
     .also {
       it.arguments[0] =
         IrConstImpl.string(
@@ -1360,6 +1390,7 @@ internal fun typeRemapperFor(substitutionMap: Map<IrTypeParameterSymbol, IrType>
                   is IrSimpleType if (!type.isWithFlexibleNullability()) -> {
                     remapped.mergeNullability(type)
                   }
+
                   else -> remapped
                 }
               } ?: type
@@ -1377,6 +1408,7 @@ internal fun typeRemapperFor(substitutionMap: Map<IrTypeParameterSymbol, IrType>
               type.buildSimpleType { arguments = newArguments }
             }
           }
+
           else -> type
         }
       }
@@ -1489,6 +1521,7 @@ private class DeepTypeSubstitutor(private val substitutionMap: Map<IrTypeParamet
             if (newArgs == type.arguments) type else type.buildSimpleType { arguments = newArgs }
           }
         }
+
         else -> type
       }
     }
@@ -1514,6 +1547,7 @@ internal fun IrConstructorCall.rankValue(): Long {
           else -> Long.MIN_VALUE
         }
       }
+
       else -> Long.MIN_VALUE
     }
   } ?: Long.MIN_VALUE
@@ -1648,8 +1682,7 @@ internal fun IrConstructorCall.bindingTypeOrNull(): Pair<IrType?, Boolean> {
 
 context(context: IrPluginContext)
 internal fun IrConstructorCall.bindingTypeArgument(): IrType? {
-  return getValueArgument(Symbols.Names.binding)?.expectAsOrNull<IrConstructorCall>()?.let {
-    bindingType ->
+  return getValueArgument(Symbols.Names.binding)?.expectAsOrNull<IrConstructorCall>()?.let { bindingType ->
     bindingType.typeArguments.getOrNull(0)?.takeUnless { it == context.irBuiltIns.nothingType }
   }
 }

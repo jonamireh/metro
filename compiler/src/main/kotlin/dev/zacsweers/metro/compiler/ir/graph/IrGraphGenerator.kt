@@ -41,7 +41,7 @@ import dev.zacsweers.metro.compiler.ir.transformers.MembersInjectorTransformer
 import dev.zacsweers.metro.compiler.ir.typeAsProviderArgument
 import dev.zacsweers.metro.compiler.ir.typeRemapperFor
 import dev.zacsweers.metro.compiler.ir.writeDiagnostic
-import dev.zacsweers.metro.compiler.isGeneratedGraph
+import dev.zacsweers.metro.compiler.isInvisibleGeneratedGraph
 import dev.zacsweers.metro.compiler.letIf
 import dev.zacsweers.metro.compiler.proto.MetroMetadata
 import dev.zacsweers.metro.compiler.reportCompilerBug
@@ -261,7 +261,6 @@ internal class IrGraphGenerator(
               {
                 name
                   .asString()
-                  .removePrefix("$$")
                   .decapitalizeUS()
                   .suffixIfNot("Instance")
                   .suffixIfNot("Provider")
@@ -638,7 +637,7 @@ internal class IrGraphGenerator(
           .forEach { property -> addChild(property) }
       }
 
-      if (!graphClass.origin.isGeneratedGraph) {
+      if (!graphClass.origin.isInvisibleGeneratedGraph) {
         parentTracer.traceNested("Generate Metro metadata") {
           // Finally, generate metadata
           val graphProto = node.toProto(bindingGraph = bindingGraph)
@@ -665,7 +664,7 @@ internal class IrGraphGenerator(
     initializerExpression: IrBuilderWithScope.() -> IrExpression,
   ): IrProperty =
     addProperty {
-        this.name = name.removePrefix("$$").decapitalizeUS().asName()
+        this.name = name.decapitalizeUS().asName()
         this.visibility = DescriptorVisibilities.PRIVATE
       }
       .apply { this.addBackingField { this.type = typeKey.type } }

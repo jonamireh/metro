@@ -242,11 +242,13 @@ internal inline fun Visibility.checkVisibility(
       // These are fine
       // TODO what about across modules? Is internal really ok? Or PublishedApi?
     }
+
     Visibilities.Protected -> {
       if (!allowProtected) {
         onError(source, "public or internal")
       }
     }
+
     else -> {
       onError(source, if (allowProtected) "public, internal or protected" else "public or internal")
     }
@@ -372,6 +374,7 @@ internal fun FirAnnotationCall.computeAnnotationHash(
               ?.coneType
               ?.classId
           }
+
           else -> {
             reportCompilerBug(
               "Unexpected annotation argument type: ${arg::class.java} - ${arg.render()}"
@@ -412,6 +415,7 @@ internal inline fun FirClassSymbol<*>.findInjectConstructor(
         }
       }
     }
+
     else -> {
       for (constructorInjection in constructorInjections) {
         reporter.reportOn(
@@ -512,6 +516,7 @@ internal fun FirClass.validateInjectedClass(
         Modality.OPEN -> {
           // final/open This is fine
         }
+
         else -> {
           // sealed/abstract
           reporter.reportOn(
@@ -527,6 +532,7 @@ internal fun FirClass.validateInjectedClass(
       // If we hit here, it's because the class has a `@Contributes*` annotation implying its
       // injectability but no regular `@Inject` annotations. So, report nothing
     }
+
     else -> {
       reporter.reportOn(source, MetroDiagnostics.ONLY_CLASSES_CAN_BE_INJECTED, context)
     }
@@ -580,16 +586,19 @@ internal inline fun FirClass.validateApiDeclaration(
           )
           onError()
         }
+
         else -> {
           // This is fine
         }
       }
     }
+
     ClassKind.CLASS -> {
       when (modality) {
         Modality.ABSTRACT -> {
           // This is fine
         }
+
         else -> {
           // final/open/sealed
           reporter.reportOn(
@@ -601,6 +610,7 @@ internal inline fun FirClass.validateApiDeclaration(
         }
       }
     }
+
     else -> {
       reporter.reportOn(
         source,
@@ -722,12 +732,21 @@ internal fun createDeprecatedHiddenAnnotation(session: FirSession): FirAnnotatio
       // way.
       mapping[Name.identifier("level")] =
         buildEnumEntryDeserializedAccessExpression {
-            enumClassId = StandardClassIds.DeprecationLevel
-            enumEntryName = Name.identifier("HIDDEN")
-          }
+          enumClassId = StandardClassIds.DeprecationLevel
+          enumEntryName = Name.identifier("HIDDEN")
+        }
           .toQualifiedPropertyAccessExpression(session)
     }
   }
+
+internal fun FirClassLikeDeclaration.markImpl(session: FirSession) {
+  replaceAnnotations(
+    annotations +
+    listOf(
+      buildSimpleAnnotation { session.metroFirBuiltIns.metroImplMarkerClassSymbol }
+    )
+  )
+}
 
 internal fun FirClassLikeDeclaration.markAsDeprecatedHidden(session: FirSession) {
   replaceAnnotations(annotations + listOf(createDeprecatedHiddenAnnotation(session)))
@@ -819,13 +838,15 @@ internal fun FirCallableSymbol<*>.findAnnotation(
           return it
         }
     }
+
     is FirPropertyAccessorSymbol -> {
       return propertySymbol.findAnnotation(session, findAnnotation, this)
     }
+
     is FirBackingFieldSymbol -> {
       return propertySymbol.findAnnotation(session, findAnnotation, this)
     }
-  // else it's a function, covered by the above
+    // else it's a function, covered by the above
   }
   return null
 }
@@ -854,9 +875,9 @@ internal fun FirAnnotation.includesArgument() = arrayArgument(Symbols.Names.incl
 
 internal fun FirAnnotation.allScopeClassIds(): Set<ClassId> =
   buildSet {
-      resolvedScopeClassId()?.let(::add)
-      resolvedAdditionalScopesClassIds()?.let(::addAll)
-    }
+    resolvedScopeClassId()?.let(::add)
+    resolvedAdditionalScopesClassIds()?.let(::addAll)
+  }
     .filterNotTo(mutableSetOf()) { it == StandardClassIds.Nothing }
 
 internal fun FirAnnotation.excludesArgument() = arrayArgument(Symbols.Names.excludes, index = 2)
@@ -1169,12 +1190,12 @@ internal fun FirClass.isOrImplements(supertype: ClassId, session: FirSession): B
 
 internal fun FirClass.implements(supertype: ClassId, session: FirSession): Boolean {
   return lookupSuperTypes(
-      klass = this,
-      lookupInterfaces = true,
-      deep = true,
-      useSiteSession = session,
-      substituteTypes = true,
-    )
+    klass = this,
+    lookupInterfaces = true,
+    deep = true,
+    useSiteSession = session,
+    substituteTypes = true,
+  )
     .any { it.classId?.let { it == supertype } == true }
 }
 
@@ -1185,12 +1206,12 @@ internal fun FirClassSymbol<*>.isOrImplements(supertype: ClassId, session: FirSe
 
 internal fun FirClassSymbol<*>.implements(supertype: ClassId, session: FirSession): Boolean {
   return lookupSuperTypes(
-      symbols = listOf(this),
-      lookupInterfaces = true,
-      deep = true,
-      useSiteSession = session,
-      substituteTypes = true,
-    )
+    symbols = listOf(this),
+    lookupInterfaces = true,
+    deep = true,
+    useSiteSession = session,
+    substituteTypes = true,
+  )
     .any { it.classId?.let { it == supertype } == true }
 }
 
@@ -1367,7 +1388,7 @@ internal fun FirClassLikeSymbol<*>.bindingContainerErrorMessage(
     "Inner class '${classId.shortClassName}' cannot be a binding container."
   } else if (
     !alreadyCheckedAnnotation &&
-      !isAnnotatedWithAny(session, session.metroFirBuiltIns.classIds.bindingContainerAnnotations)
+    !isAnnotatedWithAny(session, session.metroFirBuiltIns.classIds.bindingContainerAnnotations)
   ) {
     "'${classId.asFqNameString()}' is not annotated with a `@BindingContainer` annotation."
   } else {

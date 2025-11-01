@@ -4,7 +4,6 @@ package dev.zacsweers.metro.compiler.ir.graph
 
 import dev.zacsweers.metro.compiler.MetroLogger
 import dev.zacsweers.metro.compiler.Origins
-import dev.zacsweers.metro.compiler.Symbols
 import dev.zacsweers.metro.compiler.expectAs
 import dev.zacsweers.metro.compiler.flatMapToSet
 import dev.zacsweers.metro.compiler.ir.BindsLikeCallable
@@ -624,10 +623,9 @@ internal class BindingGraphGenerator(
 
         val irGetter = getter.ir
         val parentClass = irGetter.parentAsClass
-        val parentName = parentClass.name
         val getterToUse =
-          if (parentName == Symbols.Names.MetroGraph || parentClass.origin.isGraphImpl) {
-            // Use the original graph decl so we don't tie this invocation to `$$MetroGraph`
+          if (irGetter.overriddenSymbols.isNotEmpty() && parentClass.sourceGraphIfMetroGraph != parentClass) {
+            // Use the original graph decl so we don't tie this invocation to any impls
             // specifically
             irGetter.overriddenSymbolsSequence().firstOrNull()?.owner
               ?: run { reportCompilerBug("${irGetter.dumpKotlinLike()} overrides nothing") }
@@ -707,30 +705,30 @@ internal class BindingGraphGenerator(
 
         // Register a lazy parent key that will only call mark() when actually used
         bindingLookup.addLazyParentKey(key) {
-          val fieldAccess = parentContext.mark(key) ?: reportCompilerBug("Missing parent key $key")
+          val propertyAccess = parentContext.mark(key) ?: reportCompilerBug("Missing parent key $key")
 
           // Record a lookup for IC when the binding is actually created
-          val fieldParentClass = fieldAccess.property.parentAsClass
+          val propertyParentClass = propertyAccess.property.parentAsClass
           trackMemberDeclarationCall(
             node.sourceGraph,
-            fieldParentClass.kotlinFqName,
-            fieldAccess.property.name.asString(),
+            propertyParentClass.kotlinFqName,
+            propertyAccess.property.name.asString(),
           )
 
-          if (key == fieldAccess.parentKey) {
+          if (key == propertyAccess.parentKey) {
             // Add bindings for the parent itself as a field reference
             IrBinding.BoundInstance(
               key,
               "parent",
-              fieldAccess.property,
-              classReceiverParameter = fieldAccess.receiverParameter,
-              providerPropertyAccess = fieldAccess,
+              propertyAccess.property,
+              classReceiverParameter = propertyAccess.receiverParameter,
+              providerPropertyAccess = propertyAccess,
             )
           } else {
             IrBinding.GraphDependency(
-              ownerKey = parentKeysByClass.getValue(fieldParentClass),
+              ownerKey = parentKeysByClass.getValue(propertyParentClass),
               graph = node.sourceGraph,
-              propertyAccess = fieldAccess,
+              propertyAccess = propertyAccess,
               typeKey = key,
             )
           }

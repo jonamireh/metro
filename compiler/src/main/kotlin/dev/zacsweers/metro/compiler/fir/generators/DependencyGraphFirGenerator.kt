@@ -15,6 +15,7 @@ import dev.zacsweers.metro.compiler.fir.isDependencyGraph
 import dev.zacsweers.metro.compiler.fir.isGraphFactory
 import dev.zacsweers.metro.compiler.fir.joinToRender
 import dev.zacsweers.metro.compiler.fir.markAsDeprecatedHidden
+import dev.zacsweers.metro.compiler.fir.markImpl
 import dev.zacsweers.metro.compiler.fir.metroFirBuiltIns
 import dev.zacsweers.metro.compiler.fir.nestedClasses
 import dev.zacsweers.metro.compiler.fir.predicates
@@ -48,6 +49,7 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.types.constructType
 import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.SpecialNames
 
@@ -73,7 +75,7 @@ import org.jetbrains.kotlin.name.SpecialNames
  *
  *   fun inject(thing: Thing)
  *
- *   class $$Metro : AppGraph {
+ *   class Impl : AppGraph {
  *     constructor()
  *
  *     override val value: String
@@ -109,7 +111,7 @@ import org.jetbrains.kotlin.name.SpecialNames
  * ```kotlin
  * @DependencyGraph
  * interface AppGraph {
- *   class $$Metro : AppGraph {
+ *   class Impl : AppGraph {
  *     constructor(@Provides int: Int, analyticsGraph: AnalyticsGraph)
  *   }
  *
@@ -149,7 +151,7 @@ import org.jetbrains.kotlin.name.SpecialNames
  * ```kotlin
  * @DependencyGraph
  * interface AppGraph {
- *   class $$Metro : AppGraph {
+ *   class Impl : AppGraph {
  *     constructor(@Provides int: Int, analyticsGraph: AnalyticsGraph)
  *   }
  *
@@ -157,7 +159,7 @@ import org.jetbrains.kotlin.name.SpecialNames
  *   abstract class Factory {
  *     fun create(@Provides int: Int, analyticsGraph: AnalyticsGraph): AppGraph
  *
- *     object $$Impl : Factory() {
+ *     object Impl : Factory() {
  *       override fun create(int: Int, analyticsGraph: AnalyticsGraph): AppGraph
  *     }
  *   }
@@ -177,8 +179,11 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
   FirDeclarationGenerationExtension(session), CompatContext by compatContext {
 
   companion object {
-    private val PLACEHOLDER_SAM_FUNCTION = "$\$PLACEHOLDER_FOR_SAM".asName()
+    private val PLACEHOLDER_SAM_FUNCTION = $$$"$$PLACEHOLDER_FOR_SAM".asName()
   }
+
+  private val graphImpls = mutableSetOf<ClassId>()
+  private val factoryImpls = mutableSetOf<ClassId>()
 
   override fun FirDeclarationPredicateRegistrar.registerPredicates() {
     register(session.predicates.dependencyGraphAndFactoryPredicate)
@@ -193,7 +198,8 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
     val names = mutableSetOf<Name>()
     if (classSymbol.isDependencyGraph(session)) {
       log("Found graph ${classSymbol.classId}")
-      val classId = classSymbol.classId.createNestedClassId(Symbols.Names.MetroGraph)
+      val classId = classSymbol.classId.createNestedClassId(Symbols.Names.Impl)
+      graphImpls += classId
       names += classId.shortClassName
 
       val hasCompanion = context.nestedClasses().any { it.isCompanion }
@@ -203,9 +209,11 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
       }
     } else if (classSymbol.isGraphFactory(session)) {
       log("Found graph factory ${classSymbol.classId}")
+      val classId = classSymbol.classId.createNestedClassId(Symbols.Names.Impl)
+      factoryImpls += classId
       // Always generate this impl though we may not use it. It's just easier to do it this way in
       // FIR unfortunately due to lifecycles
-      names += Symbols.Names.MetroImpl
+      names += classId.shortClassName
     }
 
     if (names.isNotEmpty()) {
@@ -243,30 +251,46 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
         log("Generating companion object for ${owner.classId}")
         createCompanionObject(owner, key).symbol
       }
-      Symbols.Names.MetroGraph -> {
-        log("Generating graph class")
-        createNestedClass(owner, name, Keys.MetroGraphDeclaration) {
-            superType(owner::constructType)
-            copyTypeParametersFrom(owner, session)
+
+      else -> {
+        val classId = owner.classId.createNestedClassId(name)
+        when (classId) {
+          in graphImpls -> {
+            log("Generating graph class")
+            createNestedClass(owner, name, Keys.GraphImplClassDeclaration) {
+              superType(owner::constructType)
+              copyTypeParametersFrom(owner, session)
+            }
+              .apply {
+                markAsDeprecatedHidden(session)
+                markImpl(session)
+              }
+              .symbol
           }
-          .apply { markAsDeprecatedHidden(session) }
-          .symbol
-      }
-      Symbols.Names.MetroImpl -> {
-        log("Generating factory impl")
-        createNestedClass(
-            owner,
-            name,
-            Keys.MetroGraphFactoryImplDeclaration,
-            classKind = ClassKind.OBJECT,
-          ) {
-            // Owner is always the factory class
-            superType(owner::constructType)
+
+          in factoryImpls -> {
+            log("Generating factory impl")
+            createNestedClass(
+              owner,
+              name,
+              Keys.GraphFactoryImplClassDeclaration,
+              classKind = ClassKind.OBJECT,
+            ) {
+              // Owner is always the factory class
+              superType(owner::constructType)
+            }
+              .apply {
+                markAsDeprecatedHidden(session)
+                markImpl(session)
+              }
+              .symbol
           }
-          .apply { markAsDeprecatedHidden(session) }
-          .symbol
+
+          else -> {
+            null
+          }
+        }
       }
-      else -> null
     }
   }
 
@@ -280,7 +304,7 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
      * There are two types of creator instances.
      * 1. A graph class's companion object. It will either implement the
      *    graph factory (if it's an interface) or expose a `factory()` accessor function.
-     * 2. A graph factory interface's $$Impl declaration (if it's not an interface).
+     * 2. A graph factory interface's `Impl` declaration (if it's not an interface).
      *
      * In either case, we'll just generate a constructor and a PLACEHOLDER_SAM_FUNCTION. The
      * placeholder is important because not everything about a creator is resolvable at
@@ -291,12 +315,12 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
       classSymbol.isCompanion &&
         classSymbol.requireContainingClassSymbol().isDependencyGraph(session)
     val isCreatorImpl =
-      isGraphCompanion || classSymbol.hasOrigin(Keys.MetroGraphFactoryImplDeclaration)
+      isGraphCompanion || classSymbol.hasOrigin(Keys.GraphFactoryImplClassDeclaration)
     if (isCreatorImpl) {
       names += SpecialNames.INIT
       names += PLACEHOLDER_SAM_FUNCTION
-    } else if (classSymbol.hasOrigin(Keys.MetroGraphDeclaration)) {
-      // $$MetroGraph, generate a constructor
+    } else if (classSymbol.hasOrigin(Keys.GraphImplClassDeclaration)) {
+      // `Impl`, generate a constructor
       names += SpecialNames.INIT
     }
 
@@ -319,7 +343,7 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
             e,
           )
         }
-      } else if (context.owner.hasOrigin(Keys.MetroGraphDeclaration)) {
+      } else if (context.owner.hasOrigin(Keys.GraphImplClassDeclaration)) {
         log("Generating graph constructor")
         // Create a constructor with parameters copied from the creator
         val creator =
@@ -328,24 +352,24 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
         log("Generating graph has creator? $creator")
         val samFunction = creator?.classSymbol?.findSamFunction(session)
         createConstructor(
-            context.owner,
-            Keys.Default,
-            isPrimary = true,
-            generateDelegatedNoArgConstructorCall = true,
-          ) {
-            visibility = Visibilities.Private
-            if (creator != null) {
-              log("Generating graph SAM - ${samFunction?.callableId}")
-              samFunction?.valueParameterSymbols?.forEach { valueParameterSymbol ->
-                log("Generating SAM param ${valueParameterSymbol.name}")
-                valueParameter(
-                  name = valueParameterSymbol.name,
-                  key = Keys.RegularParameter,
-                  type = valueParameterSymbol.resolvedReturnType,
-                )
-              }
+          context.owner,
+          Keys.Default,
+          isPrimary = true,
+          generateDelegatedNoArgConstructorCall = true,
+        ) {
+          visibility = Visibilities.Private
+          if (creator != null) {
+            log("Generating graph SAM - ${samFunction?.callableId}")
+            samFunction?.valueParameterSymbols?.forEach { valueParameterSymbol ->
+              log("Generating SAM param ${valueParameterSymbol.name}")
+              valueParameter(
+                name = valueParameterSymbol.name,
+                key = Keys.RegularParameter,
+                type = valueParameterSymbol.resolvedReturnType,
+              )
             }
           }
+        }
           .apply {
             // Copy annotations over. Workaround for https://youtrack.jetbrains.com/issue/KT-74361/
             for ((i, parameter) in samFunction?.valueParameterSymbols.orEmpty().withIndex()) {
@@ -355,7 +379,7 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
               )
             }
           }
-      } else if (context.owner.hasOrigin(Keys.MetroGraphFactoryImplDeclaration)) {
+      } else if (context.owner.hasOrigin(Keys.GraphFactoryImplClassDeclaration)) {
         createConstructor(
           context.owner,
           Keys.Default,
@@ -381,25 +405,25 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
       { target, function ->
         log("Generating creator SAM ${function.callableId} in ${target.classId}")
         createMemberFunction(
-            owner,
-            Keys.MetroGraphCreatorsObjectInvokeDeclaration,
-            function.name,
-            returnType = function.resolvedReturnType,
-          ) {
-            status {
-              isOverride = !owner.isCompanion
-              isOperator = function.isOperator
-            }
-            log("Generating ${function.valueParameterSymbols.size} parameters?")
-            for (parameter in function.valueParameterSymbols) {
-              log("Generating parameter ${parameter.name}")
-              valueParameter(
-                name = parameter.name,
-                key = Keys.RegularParameter,
-                type = parameter.resolvedReturnType,
-              )
-            }
+          owner,
+          Keys.MetroGraphCreatorsObjectInvokeDeclaration,
+          function.name,
+          returnType = function.resolvedReturnType,
+        ) {
+          status {
+            isOverride = !owner.isCompanion
+            isOperator = function.isOperator
           }
+          log("Generating ${function.valueParameterSymbols.size} parameters?")
+          for (parameter in function.valueParameterSymbols) {
+            log("Generating parameter ${parameter.name}")
+            valueParameter(
+              name = parameter.name,
+              key = Keys.RegularParameter,
+              type = parameter.resolvedReturnType,
+            )
+          }
+        }
           .apply {
             // Copy annotations over. Workaround for https://youtrack.jetbrains.com/issue/KT-74361/
             for ((i, parameter) in function.valueParameterSymbols.withIndex()) {
@@ -433,15 +457,15 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
           log("Creator was null, generating a default invoke. ")
           val generatedFunction =
             createMemberFunction(
-                owner,
-                Keys.MetroGraphCreatorsObjectInvokeDeclaration,
-                Symbols.Names.invoke,
-                returnTypeProvider = {
-                  graphClass.constructType(it.mapToArray(FirTypeParameter::toConeType))
-                },
-              ) {
-                status { isOperator = true }
-              }
+              owner,
+              Keys.MetroGraphCreatorsObjectInvokeDeclaration,
+              Symbols.Names.invoke,
+              returnTypeProvider = {
+                graphClass.constructType(it.mapToArray(FirTypeParameter::toConeType))
+              },
+            ) {
+              status { isOperator = true }
+            }
               .apply {
                 // Add our marker annotation
                 replaceAnnotationsSafe(
@@ -472,8 +496,8 @@ internal class DependencyGraphFirGenerator(session: FirSession, compatContext: C
           functions += generatedFunction.symbol
         }
       }
-    } else if (owner.hasOrigin(Keys.MetroGraphFactoryImplDeclaration)) {
-      // Graph factory $$Impl class, just generate the SAM function
+    } else if (owner.hasOrigin(Keys.GraphFactoryImplClassDeclaration)) {
+      // Graph factory `Impl` class, just generate the SAM function
       log("Generating factory impl into ${owner.classId}")
       val graphClass = owner.requireContainingClassSymbol().requireContainingClassSymbol()
       val graphObject =
