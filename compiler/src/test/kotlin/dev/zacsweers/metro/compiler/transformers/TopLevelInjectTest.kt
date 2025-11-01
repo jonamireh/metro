@@ -11,7 +11,7 @@ import dev.zacsweers.metro.compiler.captureStandardOut
 import dev.zacsweers.metro.compiler.createGraphViaFactory
 import dev.zacsweers.metro.compiler.createGraphWithNoArgs
 import dev.zacsweers.metro.compiler.expectAs
-import dev.zacsweers.metro.compiler.generatedMetroGraphClass
+import dev.zacsweers.metro.compiler.generatedImpl
 import dev.zacsweers.metro.compiler.getInstanceMethod
 import dev.zacsweers.metro.compiler.invokeInstanceMethod
 import dev.zacsweers.metro.compiler.invokeSuspendInstanceFunction
@@ -48,7 +48,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val output = captureStandardOut { app.invokeInstanceMethod<Any>("invoke") }
@@ -75,7 +75,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val output = captureStandardOut { app.invokeInstanceMethod<Any>("invoke", "Hello, world!") }
@@ -108,7 +108,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
       )
 
     val graph =
-      result.ExampleGraph.generatedMetroGraphClass().createGraphViaFactory("Hello, world!")
+      result.ExampleGraph.generatedImpl().createGraphViaFactory("Hello, world!")
 
     val app = graph.callProperty<Any>("app")
     val output = captureStandardOut { app.invokeInstanceMethod<Any>("invoke") }
@@ -141,7 +141,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
       )
 
     val graph =
-      result.ExampleGraph.generatedMetroGraphClass().createGraphViaFactory("Hello, world!")
+      result.ExampleGraph.generatedImpl().createGraphViaFactory("Hello, world!")
 
     val app = graph.callProperty<Any>("app")
     val returnString = app.invokeInstanceMethod<String>("invoke", 2)
@@ -174,7 +174,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val invoker = { app.invokeInstanceMethod<Int>("invoke") }
@@ -209,7 +209,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val invoker = { app.invokeInstanceMethod<Int>("invoke") }
@@ -248,7 +248,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     // Lazy is scoped to the function, so while it's lazy in the function it's not lazy to multiple
     // function calls
@@ -284,7 +284,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val invoker = { app.invokeInstanceMethod<Int>("invoke") }
@@ -316,7 +316,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val invoker = { app.invokeInstanceMethod<Int>("invoke") }
@@ -346,7 +346,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val output = app.invokeInstanceMethod<String>("invoke", "Hello, world!")
@@ -380,7 +380,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
           )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val method = app.getInstanceMethod("invoke")
@@ -432,7 +432,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         compilationBlock = { this.kotlincArguments += "-Xcontext-parameters" },
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val method = app.getInstanceMethod("invoke")
@@ -487,7 +487,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         compilationBlock = { this.kotlincArguments += "-Xcontext-parameters" },
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val method = app.getInstanceMethod("invoke")
@@ -542,7 +542,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         compilationBlock = { this.kotlincArguments += "-Xcontext-parameters" },
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
 
     val app = graph.callProperty<Any>("app")
     val method = app.getInstanceMethod("invoke")
@@ -589,7 +589,7 @@ class TopLevelInjectTest : MetroCompilerTest() {
         )
       )
 
-    val graph = result.ExampleGraph.generatedMetroGraphClass().createGraphWithNoArgs()
+    val graph = result.ExampleGraph.generatedImpl().createGraphWithNoArgs()
     val app = graph.callProperty<Any>("app")
     val output = app.invokeSuspendInstanceFunction<String>("invoke")
     assertThat(output).isEqualTo("Hello, world!")
