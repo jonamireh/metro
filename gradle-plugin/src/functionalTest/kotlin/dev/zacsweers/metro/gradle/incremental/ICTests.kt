@@ -252,9 +252,9 @@ class ICTests : BaseIncrementalCompilationTest() {
         AppGraph.kt:7:11 [Metro/MissingBinding] Cannot find an @Inject constructor or @Provides-annotated function/property for: kotlin.String
 
             kotlin.String is injected at
-                [test.AppGraph.$${'$'}MetroGraph.ChildGraphImpl] test.Target(…, string)
+                [test.AppGraph.Impl.ChildGraphImpl] test.Target(…, string)
             test.Target is requested at
-                [test.AppGraph.$${'$'}MetroGraph.ChildGraphImpl] test.ChildGraph.target
+                [test.AppGraph.Impl.ChildGraphImpl] test.ChildGraph.target
         """
           .trimIndent()
       )
@@ -445,7 +445,7 @@ class ICTests : BaseIncrementalCompilationTest() {
     val classLoader = project.classLoader()
     val exampleGraph = classLoader.loadClass("test.ExampleGraph")
     assertThat(exampleGraph.interfaces.map { it.name })
-      .contains("test.NewContribution$$\$MetroContributionToUnit")
+      .contains("test.NewContribution\$MetroContributionToUnit")
   }
 
   @Test
@@ -490,7 +490,7 @@ class ICTests : BaseIncrementalCompilationTest() {
     with(project.classLoader()) {
       val exampleGraph = loadClass("test.ExampleGraph")
       assertThat(exampleGraph.interfaces.map { it.name })
-        .contains("test.Impl2$$\$MetroContributionToUnit")
+        .contains("test.Impl2\$MetroContributionToUnit")
     }
 
     project.modify(
@@ -510,7 +510,7 @@ class ICTests : BaseIncrementalCompilationTest() {
     val classLoader = project.classLoader()
     val exampleGraph = classLoader.loadClass("test.ExampleGraph")
     assertThat(exampleGraph.interfaces.map { it.name })
-      .doesNotContain("test.Impl2$$\$MetroContributionToUnit")
+      .doesNotContain("test.Impl2\$MetroContributionToUnit")
   }
 
   @Test
@@ -563,7 +563,7 @@ class ICTests : BaseIncrementalCompilationTest() {
     val classLoader = project.classLoader()
     val exampleGraph = classLoader.loadClass("test.ExampleGraph")
     assertThat(exampleGraph.interfaces.map { it.name })
-      .contains("test.ContributedInterface2$$\$MetroContributionToUnit")
+      .contains("test.ContributedInterface2\$MetroContributionToUnit")
   }
 
   @Test
@@ -603,7 +603,7 @@ class ICTests : BaseIncrementalCompilationTest() {
     with(project.classLoader()) {
       val exampleGraph = loadClass("test.ExampleGraph")
       assertThat(exampleGraph.interfaces.map { it.name })
-        .contains("test.ContributedInterface2$$\$MetroContributionToUnit")
+        .contains("test.ContributedInterface2\$MetroContributionToUnit")
     }
 
     project.modify(
@@ -622,7 +622,7 @@ class ICTests : BaseIncrementalCompilationTest() {
     val classLoader = project.classLoader()
     val exampleGraph = classLoader.loadClass("test.ExampleGraph")
     assertThat(exampleGraph.interfaces.map { it.name })
-      .doesNotContain("test.ContributedInterface2$$\$MetroContributionToUnit")
+      .doesNotContain("test.ContributedInterface2\$MetroContributionToUnit")
   }
 
   @Test
@@ -892,10 +892,10 @@ class ICTests : BaseIncrementalCompilationTest() {
     assertThat(firstBuildResult.output.cleanOutputLine())
       .contains(
         """
-        e: LoggedInScope.kt:9:11 [Metro/IncompatiblyScopedBindings] test.ExampleGraph.$${'$'}MetroGraph.LoggedInGraphImpl (scopes '@SingleIn(LoggedInScope::class)') may not reference bindings from different scopes:
+        e: LoggedInScope.kt:9:11 [Metro/IncompatiblyScopedBindings] test.ExampleGraph.Impl.LoggedInGraphImpl (scopes '@SingleIn(LoggedInScope::class)') may not reference bindings from different scopes:
             test.ExampleClass (scoped to '@SingleIn(UnusedScope::class)')
             test.ExampleClass is requested at
-                [test.ExampleGraph.$${'$'}MetroGraph.LoggedInGraphImpl] test.LoggedInGraph.exampleClass
+                [test.ExampleGraph.Impl.LoggedInGraphImpl] test.LoggedInGraph.exampleClass
 
 
         (Hint)
@@ -954,10 +954,10 @@ class ICTests : BaseIncrementalCompilationTest() {
     assertThat(fourthBuildResult.output.cleanOutputLine())
       .contains(
         """
-        [Metro/IncompatiblyScopedBindings] test.ExampleGraph.$${'$'}MetroGraph.LoggedInGraphImpl (scopes '@SingleIn(LoggedInScope::class)') may not reference bindings from different scopes:
+        [Metro/IncompatiblyScopedBindings] test.ExampleGraph.Impl.LoggedInGraphImpl (scopes '@SingleIn(LoggedInScope::class)') may not reference bindings from different scopes:
             test.ExampleClass (scoped to '@SingleIn(UnusedScope::class)')
             test.ExampleClass is requested at
-                [test.ExampleGraph.$${'$'}MetroGraph.LoggedInGraphImpl] test.LoggedInGraph.exampleClass
+                [test.ExampleGraph.Impl.LoggedInGraphImpl] test.LoggedInGraph.exampleClass
 
 
         (Hint)
@@ -1178,7 +1178,7 @@ class ICTests : BaseIncrementalCompilationTest() {
         e: LoggedInScope.kt:10:7 [Metro/MissingBinding] Cannot find an @Inject constructor or @Provides-annotated function/property for: test.Foo
 
             test.Foo is requested at
-                [test.ExampleGraph.$${'$'}MetroGraph.LoggedInGraphImpl] test.LoggedInGraph.childDependenc
+                [test.ExampleGraph.Impl.LoggedInGraphImpl] test.LoggedInGraph.childDependenc
         """
           .trimIndent()
       )
@@ -1223,7 +1223,7 @@ class ICTests : BaseIncrementalCompilationTest() {
         [Metro/MissingBinding] Cannot find an @Inject constructor or @Provides-annotated function/property for: test.Foo
 
             test.Foo is requested at
-                [test.ExampleGraph.$${'$'}MetroGraph.LoggedInGraphImpl] test.LoggedInGraph.childDependency
+                [test.ExampleGraph.Impl.LoggedInGraphImpl] test.LoggedInGraph.childDependency
         """
           .trimIndent()
       )
@@ -1320,7 +1320,7 @@ class ICTests : BaseIncrementalCompilationTest() {
 
     buildAndAssertOutput()
 
-    // Adding a bar param to FooImpl, FooImpl.$$MetroFactory should be regenerated with member field
+    // Adding a bar param to FooImpl, FooImpl.MetroFactory should be regenerated with member field
     libProject.modify(
       project.rootDir,
       fixture.foo,
@@ -1431,7 +1431,7 @@ class ICTests : BaseIncrementalCompilationTest() {
 
     buildAndAssertOutput()
 
-    // Adding a bar param to FooImpl, FooImpl.$$MetroFactory should be regenerated with member field
+    // Adding a bar param to FooImpl, FooImpl.MetroFactory should be regenerated with member field
     libProject.modify(
       project.rootDir,
       fixture.foo,
