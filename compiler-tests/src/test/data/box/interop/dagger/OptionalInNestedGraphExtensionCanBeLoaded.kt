@@ -10,45 +10,42 @@ interface FeatureScope
 interface DelegateDependency
 
 @ContributesBinding(AppScope::class)
-class DelegateDependencyImpl
 @Inject
-constructor(
+class DelegateDependencyImpl(
   private val appDependency: AppDependency,
-  private val LoggedInDependency: Optional<LoggedInDependency>,
-) : DelegateDependency by LoggedInDependency.getOrDefault(appDependency)
+  private val optionalDep: Optional<LoggedInDependency>,
+) : DelegateDependency by optionalDep.getOrDefault(appDependency)
 
 interface AppDependency : DelegateDependency
 
 @ContributesBinding(AppScope::class)
 @SingleIn(AppScope::class)
-class AppDependencyImpl @Inject constructor() : AppDependency
+@Inject
+class AppDependencyImpl : AppDependency
 
 interface LoggedInDependency : DelegateDependency
 
 @ContributesBinding(LoggedInScope::class)
 @SingleIn(LoggedInScope::class)
-class LoggedInDependencyImpl @Inject constructor() : LoggedInDependency
+@Inject
+class LoggedInDependencyImpl : LoggedInDependency
 
-@dagger.Module
-@ContributesTo(AppScope::class)
-interface DependencyModule {
-  @dagger.BindsOptionalOf fun provideOptional(): LoggedInDependency
-}
-
-@SingleIn(FeatureScope::class)
 @GraphExtension(FeatureScope::class)
 interface FeatureGraph {
   val dependency: DelegateDependency
 }
 
-@SingleIn(LoggedInScope::class)
 @GraphExtension(LoggedInScope::class)
 interface LoggedInGraph {
   val featureGraph: FeatureGraph
 }
 
-@SingleIn(AppScope::class)
-@DependencyGraph(AppScope::class)
+@dagger.Module
+interface DependencyModule {
+  @dagger.BindsOptionalOf fun provideOptional(): LoggedInDependency
+}
+
+@DependencyGraph(AppScope::class, bindingContainers = [DependencyModule::class])
 interface AppGraph {
   val loggedInGraph: LoggedInGraph
 }
