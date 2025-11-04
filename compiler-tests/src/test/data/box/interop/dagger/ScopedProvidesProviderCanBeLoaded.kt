@@ -3,29 +3,27 @@ package test
 
 import javax.inject.Provider
 
-@SingleIn(AppScope::class)
-@DependencyGraph(AppScope::class)
-interface AppGraph
+@SingleIn(AppScope::class) @DependencyGraph(AppScope::class) interface AppGraph
 
 interface Dependency
 
 @dagger.Module
 @ContributesTo(AppScope::class)
 interface DependencyModule {
-    companion object {
-        @dagger.Provides
-        @SingleIn(AppScope::class)
-        fun provideDependency() : Dependency = object: Dependency { }
-    }
+  companion object {
+    @dagger.Provides
+    @SingleIn(AppScope::class)
+    fun provideDependency(): Dependency = object : Dependency {}
+  }
 }
 
 @ContributesTo(AppScope::class)
 interface DependencyProvider {
-    val provider: Provider<Dependency>
+  val provider: Provider<Dependency>
 }
 
 fun box(): String {
-    val graph = createGraph<AppGraph>()
-    assertNotNull(graph.asContribution<DependencyProvider>().provider.get())
-    return "OK"
+  val graph = createGraph<AppGraph>()
+  assertNotNull(graph.asContribution<DependencyProvider>().provider.get())
+  return "OK"
 }
