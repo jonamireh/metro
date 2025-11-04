@@ -3,7 +3,7 @@ package test
 
 import javax.inject.Provider
 
-@SingleIn(AppScope::class) @DependencyGraph(AppScope::class) interface AppGraph
+@DependencyGraph(AppScope::class) interface AppGraph
 
 interface Dependency
 
