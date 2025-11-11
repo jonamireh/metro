@@ -44,6 +44,11 @@ abstract class BaseIncrementalCompilationTest {
     }
   }
 
+  protected fun GradleProject.delete(source: Source) {
+    val filePath = "src/main/kotlin/${source.path}/${source.name}.kt"
+    rootDir.resolve(filePath).delete()
+  }
+
   protected fun GradleProject.modify(source: Source, @Language("kotlin") content: String) {
     val newSource = source.copy(content)
     val filePath = "src/main/kotlin/${newSource.path}/${newSource.name}.kt"
@@ -59,6 +64,12 @@ abstract class BaseIncrementalCompilationTest {
     val filePath = "src/main/kotlin/${newSource.path}/${newSource.name}.kt"
     val projectPath = rootDir.resolve(this.name.removePrefix(":").replace(":", "/"))
     projectPath.resolve(filePath).writeText(newSource.source)
+  }
+
+  protected fun Subproject.delete(rootDir: File, source: Source) {
+    val filePath = "src/main/kotlin/${source.path}/${source.name}.kt"
+    val projectPath = rootDir.resolve(this.name.removePrefix(":").replace(":", "/"))
+    projectPath.resolve(filePath).delete()
   }
 
   protected fun modifyKotlinFile(

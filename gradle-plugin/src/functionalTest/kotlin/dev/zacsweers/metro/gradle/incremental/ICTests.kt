@@ -1921,4 +1921,115 @@ class ICTests : BaseIncrementalCompilationTest() {
     val secondBuildResult = build(project.rootDir, "compileKotlin")
     assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
   }
+
+  @Test
+  fun restoredMultibindingContributionFromExternalModuleIsDetected() {
+    val fixture =
+      object : MetroProject() {
+        val multibindings =
+          source(
+            """
+            interface Multibinding
+
+            class AppMultibinding @Inject constructor(): Multibinding {
+                override fun toString(): String = "AppMultibinding"
+            }
+            """
+              .trimIndent()
+          )
+
+        val appModuleContent =
+          """
+          @BindingContainer
+          @ContributesTo(Unit::class)
+          interface AppModule {
+            @Binds
+            @IntoSet
+            fun bindMultibinding(multibinding: AppMultibinding):Multibinding
+          }
+          """
+            .trimIndent()
+
+        val appModule = source(appModuleContent)
+
+        override fun sources() = throw IllegalStateException()
+
+        override val gradleProject: GradleProject
+          get() =
+            newGradleProjectBuilder(DslKind.KOTLIN)
+              .withRootProject {
+                withBuildScript {
+                  sources = listOf(main, appGraph)
+                  applyMetroDefault()
+                  dependencies(Dependency.implementation(":lib"))
+                }
+              }
+              .withSubproject("lib") {
+                sources.add(multibindings)
+                sources.add(appModule)
+                withBuildScript { applyMetroDefault() }
+              }
+              .write()
+
+        private val appGraph =
+          source(
+            """
+                          @DependencyGraph(Unit::class)
+                          interface AppGraph {
+                            val multibindings: Set<Multibinding>
+                          }
+
+                          @BindingContainer
+                          @ContributesTo(Unit::class)
+                          interface PrimeModule {
+                            @Multibinds(allowEmpty = true)
+                            fun bindMultibinding():Set<Multibinding>
+                          }
+                      """
+          )
+
+        val main =
+          source(
+            """
+                        fun main(): String {
+                            val appGraph = createGraph<AppGraph>()
+                            return appGraph.multibindings.toString()
+                        }
+            """
+          )
+      }
+
+    val project = fixture.gradleProject
+    val libProject = project.subprojects.first { it.name == "lib" }
+
+    // First build should succeed
+    val firstBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(firstBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    with(project.classLoader().loadClass("test.MainKt")) {
+      val result = declaredMethods.first { it.name == "main" }.invoke(null) as String
+      assertThat(result).isEqualTo("[AppMultibinding]")
+    }
+
+    // Remove contributing module from the build
+    libProject.delete(project.rootDir, fixture.appModule)
+
+    // Second build should succeed
+    val secondBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    with(project.classLoader().loadClass("test.MainKt")) {
+      val result = declaredMethods.first { it.name == "main" }.invoke(null) as String
+      assertThat(result).isEqualTo("[]")
+    }
+
+    // Restore contributing module to the build
+    libProject.modify(project.rootDir, fixture.appModule, fixture.appModuleContent)
+
+    // Third build should succeed
+    val thirdBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(thirdBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    with(project.classLoader().loadClass("test.MainKt")) {
+      val result = declaredMethods.first { it.name == "main" }.invoke(null) as String
+      assertThat(result).isEqualTo("[AppMultibinding]")
+    }
+  }
 }
