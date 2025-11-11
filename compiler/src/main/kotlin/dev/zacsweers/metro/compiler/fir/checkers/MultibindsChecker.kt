@@ -19,14 +19,17 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirCallableDeclara
 import org.jetbrains.kotlin.fir.declarations.FirCallableDeclaration
 import org.jetbrains.kotlin.fir.declarations.FirPropertyAccessor
 import org.jetbrains.kotlin.fir.declarations.getBooleanArgument
+import org.jetbrains.kotlin.fir.declarations.utils.isEnumClass
 import org.jetbrains.kotlin.fir.declarations.utils.isOverride
 import org.jetbrains.kotlin.fir.resolve.toClassSymbol
+import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeStarProjection
 import org.jetbrains.kotlin.fir.types.ConeTypeProjection
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.classLikeLookupTagIfAny
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.isArrayType
+import org.jetbrains.kotlin.fir.types.isEnum
 import org.jetbrains.kotlin.fir.types.isKClassType
 import org.jetbrains.kotlin.fir.types.isMarkedNullable
 import org.jetbrains.kotlin.fir.types.isPrimitive
@@ -127,7 +130,7 @@ internal object MultibindsChecker : FirCallableDeclarationChecker(MppCheckerKind
             } else {
               // Keys can only be const-able or annotation classes
               keyTypeArg.type?.let { keyType ->
-                if (keyType.isPrimitive || keyType.isString || keyType.isKClassType()) {
+                if (keyType.isPrimitive || keyType.isString || keyType.isKClassType() || keyType.toRegularClassSymbol(session)?.isEnumClass == true) {
                   // ok
                 } else if (keyType.isArrayType) {
                   // Arrays don't implement hashcode
