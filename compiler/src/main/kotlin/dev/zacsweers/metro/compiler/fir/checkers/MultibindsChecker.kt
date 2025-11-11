@@ -166,7 +166,7 @@ internal object MultibindsChecker : FirCallableDeclarationChecker(MppCheckerKind
                       reporter.reportOn(
                         declaration.returnTypeRef.source ?: source,
                         MetroDiagnostics.MULTIBINDS_ERROR,
-                        "Multibinding map keys must be a primitive, String, KClass, or an annotation class.",
+                        "Multibinding map keys must be a primitive, String, KClass, enum, or an annotation class.",
                       )
                     }
                   }

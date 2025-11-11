@@ -20,7 +20,7 @@ interface ExampleGraph {
     @Multibinds(allowEmpty = true)
     fun primeMap(): Map<Animal, String>
 
-    val directMap: Map<Animal, String>
+    val directMap: Map<Animal.Dog, String>
 }
 
 fun box(): String {
