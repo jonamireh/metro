@@ -108,12 +108,12 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
       """
         .trimIndent(),
     )
-    assertThat(project.appGraphReports.keysPopulated).doesNotContain("InterfaceB")
+    assertThat(project.asMetroProject.appGraphReports.keysPopulated).doesNotContain("InterfaceB")
 
     // Second build should succeed with the new binding available
     val secondBuildResult = build(project.rootDir, "compileKotlin")
     assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(project.appGraphReports.keysPopulated)
+    assertThat(project.asMetroProject.appGraphReports.keysPopulated)
       .containsAtLeastElementsIn(setOf("test.InterfaceB", "test.ImplB"))
   }
 
@@ -277,7 +277,8 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
     // First build should succeed
     val firstBuildResult = build(project.rootDir, "compileKotlin")
     assertThat(firstBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(project.appGraphReports.keysPopulated).doesNotContain("test.InterfaceB")
+    assertThat(project.asMetroProject.appGraphReports.keysPopulated)
+      .doesNotContain("test.InterfaceB")
 
     // Change the binding return type
     project.modify(
@@ -511,7 +512,7 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
     // First build should succeed
     val firstBuildResult = build(project.rootDir, "compileKotlin")
     assertThat(firstBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(project.appGraphReports.scopedProviderPropertyKeys).isEmpty()
+    assertThat(project.asMetroProject.appGraphReports.scopedProviderPropertyKeys).isEmpty()
 
     // Add scope to the provider method
     project.modify(
@@ -530,7 +531,8 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
     // Second build should succeed with the scoped provider
     val secondBuildResult = build(project.rootDir, "compileKotlin")
     assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(project.appGraphReports.scopedProviderPropertyKeys).contains("kotlin.String")
+    assertThat(project.asMetroProject.appGraphReports.scopedProviderPropertyKeys)
+      .contains("kotlin.String")
   }
 
   @Test
@@ -1985,7 +1987,7 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
           interface AppModule {
             @Binds
             @IntoSet
-            fun bindMultibinding(multibinding: AppMultibinding):Multibinding
+            fun bindMultibinding(multibinding: AppMultibinding): Multibinding
           }
           """
             .trimIndent()
@@ -2014,27 +2016,27 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
         private val appGraph =
           source(
             """
-                          @DependencyGraph(Unit::class)
-                          interface AppGraph {
-                            val multibindings: Set<Multibinding>
-                          }
+            @DependencyGraph(Unit::class)
+            interface AppGraph {
+              val multibindings: Set<Multibinding>
+            }
 
-                          @BindingContainer
-                          @ContributesTo(Unit::class)
-                          interface PrimeModule {
-                            @Multibinds(allowEmpty = true)
-                            fun bindMultibinding():Set<Multibinding>
-                          }
-                      """
+            @BindingContainer
+            @ContributesTo(Unit::class)
+            interface PrimeModule {
+              @Multibinds(allowEmpty = true)
+              fun bindMultibinding(): Set<Multibinding>
+            }
+              """
           )
 
         val main =
           source(
             """
-                        fun main(): String {
-                            val appGraph = createGraph<AppGraph>()
-                            return appGraph.multibindings.toString()
-                        }
+            fun main(): String {
+              val appGraph = createGraph<AppGraph>()
+              return appGraph.multibindings.toString()
+            }
             """
           )
       }

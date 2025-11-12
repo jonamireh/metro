@@ -11,19 +11,28 @@ import org.intellij.lang.annotations.Language
 
 abstract class BaseIncrementalCompilationTest {
 
-  protected val GradleProject.buildDir: File
+  protected val GradleProject.asMetroProject: MetroGradleProject
+    get() = MetroGradleProject(rootDir)
+
+  protected fun GradleProject.metroProject(path: String): MetroGradleProject {
+    return MetroGradleProject(rootDir.resolve(path))
+  }
+
+  @JvmInline protected value class MetroGradleProject(val rootDir: File)
+
+  protected val MetroGradleProject.buildDir: File
     get() = rootDir.resolve("build")
 
-  protected val GradleProject.metroDir: File
+  protected val MetroGradleProject.metroDir: File
     get() = buildDir.resolve("metro")
 
-  protected fun GradleProject.reports(compilation: String): Reports =
+  protected fun MetroGradleProject.reports(compilation: String): Reports =
     metroDir.resolve(compilation).let(::Reports)
 
-  protected val GradleProject.mainReports: Reports
+  protected val MetroGradleProject.mainReports: Reports
     get() = reports("main")
 
-  protected val GradleProject.appGraphReports: GraphReports
+  protected val MetroGradleProject.appGraphReports: GraphReports
     get() = mainReports.forGraph("AppGraph")
 
   class Reports(private val dir: File) {
