@@ -10,6 +10,7 @@ import com.autonomousapps.kit.GradleProject
 import com.autonomousapps.kit.GradleProject.DslKind
 import com.autonomousapps.kit.gradle.Dependency
 import com.google.common.truth.Truth.assertThat
+import dev.zacsweers.metro.gradle.DEBUGGING_ARGS
 import dev.zacsweers.metro.gradle.MetroOptionOverrides
 import dev.zacsweers.metro.gradle.MetroProject
 import dev.zacsweers.metro.gradle.assertOutputContainsOnDifferentKotlinVersions
@@ -2045,7 +2046,8 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
     val libProject = project.subprojects.first { it.name == "lib" }
 
     // First build should succeed
-    val firstBuildResult = build(project.rootDir, "compileKotlin")
+    println("BEGIN: build 1")
+    val firstBuildResult = build(project.rootDir, "compileKotlin", "--quiet")
     assertThat(firstBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     with(project.classLoader().loadClass("test.MainKt")) {
       val result = declaredMethods.first { it.name == "main" }.invoke(null) as String
@@ -2053,10 +2055,12 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
     }
 
     // Remove contributing module from the build
+    println("Deleting AppModule")
     libProject.delete(project.rootDir, fixture.appModule)
 
     // Second build should succeed
-    val secondBuildResult = build(project.rootDir, "compileKotlin")
+    println("BEGIN: build 2")
+    val secondBuildResult = build(project.rootDir, "compileKotlin", "--quiet")
     assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     with(project.classLoader().loadClass("test.MainKt")) {
       val result = declaredMethods.first { it.name == "main" }.invoke(null) as String
@@ -2064,10 +2068,12 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
     }
 
     // Restore contributing module to the build
+    println("Restoring app module")
     libProject.modify(project.rootDir, fixture.appModule, fixture.appModuleContent)
 
     // Third build should succeed
-    val thirdBuildResult = build(project.rootDir, "compileKotlin")
+    println("BEGIN: build 3")
+    val thirdBuildResult = build(project.rootDir, "compileKotlin", "--rerun", DEBUGGING_ARGS)
     assertThat(thirdBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     with(project.classLoader().loadClass("test.MainKt")) {
       val result = declaredMethods.first { it.name == "main" }.invoke(null) as String
