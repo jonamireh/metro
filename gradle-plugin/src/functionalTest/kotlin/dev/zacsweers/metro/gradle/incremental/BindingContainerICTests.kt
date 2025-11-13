@@ -2073,7 +2073,7 @@ class BindingContainerICTests : BaseIncrementalCompilationTest() {
 
     // Third build should succeed
     println("BEGIN: build 3")
-    val thirdBuildResult = build(project.rootDir, "compileKotlin", "--rerun", DEBUGGING_ARGS)
+    val thirdBuildResult = build(project.rootDir, "compileKotlin", DEBUGGING_ARGS)
     assertThat(thirdBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     with(project.classLoader().loadClass("test.MainKt")) {
       val result = declaredMethods.first { it.name == "main" }.invoke(null) as String
