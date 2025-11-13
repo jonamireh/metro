@@ -27,7 +27,7 @@ abstract class BaseIncrementalCompilationTest {
     get() = buildDir.resolve("metro")
 
   protected fun MetroGradleProject.reports(compilation: String): Reports =
-    metroDir.resolve(compilation).let(::Reports)
+    metroDir.resolve(compilation).listFiles().maxByOrNull { it.lastModified() }!!.let(::Reports)
 
   protected val MetroGradleProject.mainReports: Reports
     get() = reports("main")
@@ -35,7 +35,7 @@ abstract class BaseIncrementalCompilationTest {
   protected val MetroGradleProject.appGraphReports: GraphReports
     get() = mainReports.forGraph("AppGraph")
 
-  class Reports(private val dir: File) {
+  class Reports(val dir: File) {
     fun forGraph(graph: String): GraphReports {
       return GraphReports(dir, graph)
     }
