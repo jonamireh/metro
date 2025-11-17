@@ -20,7 +20,6 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.fileOrNull
 import org.jetbrains.kotlin.ir.util.kotlinFqName
-import org.jetbrains.kotlin.ir.util.parentClassOrNull
 import org.jetbrains.kotlin.ir.util.resolveFakeOverrideMaybeAbstract
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
@@ -120,12 +119,8 @@ internal fun trackFunctionCall(callingDeclaration: IrDeclaration, calleeFunction
     val declaration: IrDeclarationWithName =
       (callee as? IrSimpleFunction)?.correspondingPropertySymbol?.owner ?: callee
 
-    val container =
-      callee.parentClassOrNull?.classId?.outerClassId?.asSingleFqName()
-        ?: callee.parent.kotlinFqName
-
     trackLookup(
-      container = container,
+      container = callee.parent.kotlinFqName,
       declarationName = declaration.name.asString(),
       scopeKind = ScopeKind.CLASSIFIER,
       location =
