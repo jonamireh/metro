@@ -741,9 +741,8 @@ internal fun IrConstructorCall.subcomponentsArgument() =
   getValueArgument(Symbols.Names.subcomponents)?.expectAsOrNull<IrVararg>()
 
 internal fun IrConstructorCall.excludesArgument() =
-    (getValueArgument(Symbols.Names.excludes)
-        ?: getValueArgument(Symbols.Names.exclude)
-    )?.expectAsOrNull<IrVararg>()
+  (getValueArgument(Symbols.Names.excludes) ?: getValueArgument(Symbols.Names.exclude))
+    ?.expectAsOrNull<IrVararg>()
 
 internal fun IrConstructorCall.additionalScopesArgument() =
   getValueArgument(Symbols.Names.additionalScopes)?.expectAsOrNull<IrVararg>()

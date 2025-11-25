@@ -65,8 +65,8 @@ internal class Symbols(
     const val CREATE_DYNAMIC_GRAPH_FACTORY = "createDynamicGraphFactory"
     const val ELEMENTS_INTO_SET = "ElementsIntoSet"
     const val ERROR = "error"
+    const val EXCLUDE = "exclude" // Anvil
     const val EXCLUDES = "excludes"
-    const val EXCLUDE = "exclude"
     const val EXTENDS = "Extends"
     const val FACTORY = "factory"
     const val GET = "get"
