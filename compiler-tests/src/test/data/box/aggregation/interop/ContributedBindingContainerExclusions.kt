@@ -4,7 +4,6 @@
 import com.squareup.anvil.annotations.MergeComponent
 import dagger.Module
 
-// Similar to the BindingContainerViaAnnotation test but contributed
 @MergeComponent(AppScope::class, exclude = [IntBinding1::class])
 interface AppGraph {
   val int: Int
