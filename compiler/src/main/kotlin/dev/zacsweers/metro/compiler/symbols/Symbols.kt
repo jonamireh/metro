@@ -66,6 +66,7 @@ internal class Symbols(
     const val ELEMENTS_INTO_SET = "ElementsIntoSet"
     const val ERROR = "error"
     const val EXCLUDES = "excludes"
+    const val EXCLUDE = "exclude"
     const val EXTENDS = "Extends"
     const val FACTORY = "factory"
     const val GET = "get"
@@ -195,6 +196,7 @@ internal class Symbols(
     val createDynamicGraphFactory = StringNames.CREATE_DYNAMIC_GRAPH_FACTORY.asName()
     val delegateFactory = "delegateFactory".asName()
     val error = StringNames.ERROR.asName()
+    val exclude = StringNames.EXCLUDE.asName()
     val excludes = StringNames.EXCLUDES.asName()
     val factory = StringNames.FACTORY.asName()
     val ignoreQualifier = StringNames.IGNORE_QUALIFIER.asName()
