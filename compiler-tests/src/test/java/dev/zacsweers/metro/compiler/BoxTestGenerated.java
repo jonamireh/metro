@@ -1474,6 +1474,12 @@ public class BoxTestGenerated extends AbstractBoxTest {
     public void testPrimeMultibindingMapEnumKey() {
       runTest("compiler-tests/src/test/data/box/multibindings/PrimeMultibindingMapEnumKey.kt");
     }
+
+    @Test
+    @TestMetadata("UnusedMultibindingsDoNotGetValidated.kt")
+    public void testUnusedMultibindingsDoNotGetValidated() {
+      runTest("compiler-tests/src/test/data/box/multibindings/UnusedMultibindingsDoNotGetValidated.kt");
+    }
   }
 
   @Nested
