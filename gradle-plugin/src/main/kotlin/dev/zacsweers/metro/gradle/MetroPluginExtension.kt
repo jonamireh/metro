@@ -151,6 +151,17 @@ constructor(
   public val statementsPerInitFun: Property<Int> =
     objects.property(Int::class.javaObjectType).convention(25)
 
+  /** Enable/disable graph sharding of binding graphs. Disabled by default. */
+  public val enableGraphSharding: Property<Boolean> =
+    objects.property(Boolean::class.javaObjectType).convention(false)
+
+  /**
+   * Maximum number of binding keys per graph shard when sharding is enabled. Default is 2000, must
+   * be > 0.
+   */
+  public val keysPerGraphShard: Property<Int> =
+    objects.property(Int::class.javaObjectType).convention(2000)
+
   /**
    * Controls the behavior of optional dependencies on a per-compilation basis. Default is
    * [OptionalBindingBehavior.DEFAULT] mode.

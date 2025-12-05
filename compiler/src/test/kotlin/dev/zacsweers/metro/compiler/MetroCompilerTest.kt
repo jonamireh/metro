@@ -116,6 +116,10 @@ abstract class MetroCompilerTest {
                 processor.option(entry.raw.cliOption, chunkFieldInits)
               MetroOption.STATEMENTS_PER_INIT_FUN ->
                 processor.option(entry.raw.cliOption, statementsPerInitFun)
+              MetroOption.ENABLE_GRAPH_SHARDING ->
+                processor.option(entry.raw.cliOption, enableGraphSharding)
+              MetroOption.KEYS_PER_GRAPH_SHARD ->
+                processor.option(entry.raw.cliOption, keysPerGraphShard)
               MetroOption.PUBLIC_PROVIDER_SEVERITY ->
                 processor.option(entry.raw.cliOption, publicProviderSeverity)
               MetroOption.WARN_ON_INJECT_ANNOTATION_PLACEMENT ->

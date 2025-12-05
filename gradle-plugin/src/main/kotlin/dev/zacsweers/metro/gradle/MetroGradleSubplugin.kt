@@ -304,6 +304,8 @@ public class MetroGradleSubplugin @Inject constructor(private val problems: Prob
           add(lazyOption("shrink-unused-bindings", extension.shrinkUnusedBindings))
           add(lazyOption("chunk-field-inits", extension.chunkFieldInits))
           add(lazyOption("statements-per-init-fun", extension.statementsPerInitFun))
+          add(lazyOption("enable-graph-sharding", extension.enableGraphSharding))
+          add(lazyOption("keys-per-graph-shard", extension.keysPerGraphShard))
           add(lazyOption("optional-binding-behavior", extension.optionalBindingBehavior))
           add(lazyOption("public-provider-severity", extension.publicProviderSeverity))
           add(

@@ -9,6 +9,8 @@ import org.jetbrains.kotlin.test.directives.model.RegisteredDirectives
 import org.jetbrains.kotlin.test.directives.model.SimpleDirectivesContainer
 
 object MetroDirectives : SimpleDirectivesContainer() {
+  val ENABLE_IF_PROPERTY_SET by
+    stringDirective("Ignores this test unless a given property is set to true")
   val DISABLE_METRO by directive("Disables metro entirely on this module compilation if present.")
   val COMPILER_VERSION by stringDirective("Target kotlin compiler version, if any")
   // TODO eventually support multiple outputs
@@ -30,6 +32,14 @@ object MetroDirectives : SimpleDirectivesContainer() {
     valueDirective("Enable/disable shrinking of unused bindings.") { it.toBoolean() }
   val CHUNK_FIELD_INITS by
     valueDirective("Enable/disable chunking of field initializers.") { it.toBoolean() }
+  val STATEMENTS_PER_INIT_FUN by
+    valueDirective("Maximum statements per init function when chunking is enabled.") { it.toInt() }
+  val ENABLE_GRAPH_SHARDING by
+    valueDirective("Enable/disable graph sharding of binding graphs.") { it.toBoolean() }
+  val KEYS_PER_GRAPH_SHARD by
+    valueDirective("Maximum number of binding keys per graph shard when sharding is enabled.") {
+      it.toInt()
+    }
   val ENABLE_FULL_BINDING_GRAPH_VALIDATION by
     directive(
       "Enable/disable full binding graph validation of binds and provides declarations even if they are unused."

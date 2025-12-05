@@ -18,6 +18,8 @@ import dev.zacsweers.metro.compiler.ir.doubleCheck
 import dev.zacsweers.metro.compiler.ir.finalizeFakeOverride
 import dev.zacsweers.metro.compiler.ir.graph.expressions.BindingExpressionGenerator
 import dev.zacsweers.metro.compiler.ir.graph.expressions.GraphExpressionGenerator
+import dev.zacsweers.metro.compiler.ir.graph.sharding.IrGraphShardGenerator
+import dev.zacsweers.metro.compiler.ir.graph.sharding.PropertyBinding
 import dev.zacsweers.metro.compiler.ir.instanceFactory
 import dev.zacsweers.metro.compiler.ir.irExprBodySafe
 import dev.zacsweers.metro.compiler.ir.irGetProperty
@@ -137,6 +139,7 @@ internal class IrGraphGenerator(
    * @see <a href="https://github.com/ZacSweers/metro/issues/645">#645</a>
    */
   private val propertyInitializers = mutableListOf<Pair<IrProperty, PropertyInitializer>>()
+
   // TODO replace with irAttribute
   private val propertiesToTypeKeys = mutableMapOf<IrProperty, IrTypeKey>()
   private val expressionGeneratorFactory =
@@ -559,65 +562,93 @@ internal class IrGraphGenerator(
         }
       }
 
-      // Use chunked inits if the graph is large enough
-      val mustChunkInits =
-        options.chunkFieldInits && propertyInitializers.size > options.statementsPerInitFun
+      val propertyBindings =
+        propertyInitializers.map { (property, initializer) ->
+          PropertyBinding(
+            property = property,
+            typeKey = propertiesToTypeKeys.getValue(property),
+            initializer = initializer,
+          )
+        }
 
-      if (mustChunkInits) {
-        // Larger graph, split statements
-        // Chunk our constructor statements and split across multiple init functions
-        val chunks =
-          buildList<InitStatement> {
-              // Add property initializers and interleave setDelegate calls as dependencies are
-              // ready
-              for ((property, init) in propertyInitializers) {
-                val typeKey = propertiesToTypeKeys.getValue(property)
+      // Generate sharded inits if needed or fall back to chunked inits at graph level
+      val shardGenerator = IrGraphShardGenerator(metroContext)
+      val shardedInitStatements =
+        shardGenerator.generateShards(
+          graphClass = graphClass,
+          propertyBindings = propertyBindings,
+          plannedGroups = sealResult.shardGroups,
+          bindingGraph = bindingGraph,
+          diagnosticTag = parentTracer.tag,
+          deferredInit = ::addDeferredSetDelegateCalls,
+        )
 
-                // Add this property's initialization
-                add { thisReceiver ->
-                  irSetField(
-                    irGet(thisReceiver),
-                    property.backingField!!,
-                    init(thisReceiver, typeKey),
-                  )
-                }
-              }
+      if (shardedInitStatements != null) {
+        constructorStatements += shardedInitStatements
+      } else {
+        val mustChunkInits =
+          options.chunkFieldInits && propertyInitializers.size > options.statementsPerInitFun
 
-              addDeferredSetDelegateCalls(this)
-            }
-            .chunked(options.statementsPerInitFun)
+        if (mustChunkInits) {
+          // Larger graph, split statements
+          // Chunk our constructor statements and split across multiple init functions
+          val chunks =
+            buildList<InitStatement> {
+                // Add property initializers and interleave setDelegate calls as dependencies are
+                // ready
+                for ((property, init) in propertyInitializers) {
+                  val typeKey = propertiesToTypeKeys.getValue(property)
 
-        val initFunctionsToCall =
-          chunks.map { statementsChunk ->
-            val initName = functionNameAllocator.newName("init")
-            addFunction(initName, irBuiltIns.unitType, visibility = DescriptorVisibilities.PRIVATE)
-              .apply {
-                val localReceiver = thisReceiverParameter.copyTo(this)
-                setDispatchReceiver(localReceiver)
-                buildBlockBody {
-                  for (statement in statementsChunk) {
-                    +statement(localReceiver)
+                  // Add this property's initialization
+                  add { thisReceiver ->
+                    irSetField(
+                      irGet(thisReceiver),
+                      property.backingField!!,
+                      init(thisReceiver, typeKey),
+                    )
                   }
                 }
+
+                addDeferredSetDelegateCalls(this)
               }
-          }
-        constructorStatements += buildList {
-          for (initFunction in initFunctionsToCall) {
-            add { dispatchReceiver ->
-              irInvoke(dispatchReceiver = irGet(dispatchReceiver), callee = initFunction.symbol)
+              .chunked(options.statementsPerInitFun)
+
+          val initFunctionsToCall =
+            chunks.map { statementsChunk ->
+              val initName = functionNameAllocator.newName("init")
+              addFunction(
+                  initName,
+                  irBuiltIns.unitType,
+                  visibility = DescriptorVisibilities.PRIVATE,
+                )
+                .apply {
+                  val localReceiver = thisReceiverParameter.copyTo(this)
+                  setDispatchReceiver(localReceiver)
+                  buildBlockBody {
+                    for (statement in statementsChunk) {
+                      +statement(localReceiver)
+                    }
+                  }
+                }
+            }
+          constructorStatements += buildList {
+            for (initFunction in initFunctionsToCall) {
+              add { dispatchReceiver ->
+                irInvoke(dispatchReceiver = irGet(dispatchReceiver), callee = initFunction.symbol)
+              }
             }
           }
-        }
-      } else {
-        // Small graph, just do it in the constructor
-        // Assign those initializers directly to their properties and mark them as final
-        for ((property, init) in propertyInitializers) {
-          property.initFinal {
-            val typeKey = propertiesToTypeKeys.getValue(property)
-            init(thisReceiverParameter, typeKey)
+        } else {
+          // Small graph, just do it in the constructor
+          // Assign those initializers directly to their properties and mark them as final
+          for ((property, init) in propertyInitializers) {
+            property.initFinal {
+              val typeKey = propertiesToTypeKeys.getValue(property)
+              init(thisReceiverParameter, typeKey)
+            }
           }
+          addDeferredSetDelegateCalls(constructorStatements)
         }
-        addDeferredSetDelegateCalls(constructorStatements)
       }
 
       // Add extra constructor statements

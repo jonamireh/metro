@@ -8,6 +8,7 @@ import dev.zacsweers.metro.compiler.expectAs
 import dev.zacsweers.metro.compiler.fir.MetroDiagnostics
 import dev.zacsweers.metro.compiler.graph.MissingBindingHints
 import dev.zacsweers.metro.compiler.graph.MutableBindingGraph
+import dev.zacsweers.metro.compiler.graph.partitionBySCCs
 import dev.zacsweers.metro.compiler.ir.IrContextualTypeKey
 import dev.zacsweers.metro.compiler.ir.IrContributionData
 import dev.zacsweers.metro.compiler.ir.IrMetroContext
@@ -135,13 +136,14 @@ internal class IrBindingGraph(
     val sortedKeys: List<IrTypeKey>,
     val deferredTypes: Set<IrTypeKey>,
     val reachableKeys: Set<IrTypeKey>,
+    val shardGroups: List<List<IrTypeKey>>?,
     val hasErrors: Boolean,
   )
 
   data class GraphError(val declaration: IrDeclaration?, val message: String)
 
   fun seal(parentTracer: Tracer, onError: (List<GraphError>) -> Unit): BindingGraphResult {
-    val (sortedKeys, deferredTypes, reachableKeys) =
+    val topologyResult =
       parentTracer.traceNested("seal graph") { tracer ->
         val roots = buildMap {
           putAll(accessors)
@@ -169,8 +171,12 @@ internal class IrBindingGraph(
         )
       }
 
+    val sortedKeys = topologyResult.sortedKeys
+    val deferredTypes = topologyResult.deferredTypes
+    val reachableKeys = topologyResult.reachableKeys
+
     if (hasErrors) {
-      return BindingGraphResult(emptyList(), emptySet(), emptySet(), true)
+      return BindingGraphResult(emptyList(), emptySet(), emptySet(), emptyList(), true)
     }
 
     writeDiagnostic("keys-validated-${parentTracer.tag}.txt") {
@@ -195,7 +201,18 @@ internal class IrBindingGraph(
         "Found absent bindings in the binding graph: ${dumpGraph("Absent bindings", short = true)}"
       }
     }
-    return BindingGraphResult(sortedKeys, deferredTypes, reachableKeys, false)
+
+    val shardGroups =
+      parentTracer.traceNested("compute shard groups") {
+        val maxPerShard = metroContext.options.keysPerGraphShard
+        val enableSharding = metroContext.options.enableGraphSharding
+        if (enableSharding && topologyResult.adjacency.size > maxPerShard) {
+          topologyResult.partitionBySCCs(maxPerShard)
+        } else {
+          null
+        }
+      }
+    return BindingGraphResult(sortedKeys, deferredTypes, reachableKeys, shardGroups, false)
   }
 
   fun reportDuplicateBinding(
