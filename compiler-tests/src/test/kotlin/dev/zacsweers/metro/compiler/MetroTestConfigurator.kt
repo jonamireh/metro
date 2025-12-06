@@ -18,7 +18,7 @@ class MetroTestConfigurator(testServices: TestServices) : MetaTestConfigurator(t
       testServices.moduleStructure.allDirectives[MetroDirectives.ENABLE_IF_PROPERTY_SET]
         .firstOrNull()
         ?.let { property -> System.getProperty(property, "false")?.toBooleanStrict() == true }
-        ?: false
+        ?: true
     if (!enabled) return true
 
     System.getProperty("metro.singleTestName")?.let { singleTest ->
