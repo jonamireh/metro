@@ -902,65 +902,63 @@ run_compare() {
     echo ""
 }
 
-# Function to parse arguments and handle flags
-parse_args() {
-    local args=("$@")
-    local parsed_args=()
-    local build_only=false
-    local include_clean_builds=false
-    local install_profiler=false
-    local i=0
-
-    while [ $i -lt ${#args[@]} ]; do
-        local arg="${args[$i]}"
-        if [ "$arg" = "--build-only" ]; then
-            build_only=true
-        elif [ "$arg" = "--include-clean-builds" ]; then
-            include_clean_builds=true
-        elif [ "$arg" = "--install-gradle-profiler" ]; then
-            install_profiler=true
-        elif [ "$arg" = "--ref1" ]; then
-            ((i++))
-            COMPARE_REF1="${args[$i]}"
-        elif [ "$arg" = "--ref2" ]; then
-            ((i++))
-            COMPARE_REF2="${args[$i]}"
-        elif [ "$arg" = "--modes" ]; then
-            ((i++))
-            COMPARE_MODES="${args[$i]}"
-        elif [ "$arg" = "--rerun-non-metro" ]; then
-            RERUN_NON_METRO=true
-        else
-            parsed_args+=("$arg")
-        fi
-        ((i++))
-    done
-
-    echo "$build_only"
-    echo "$include_clean_builds"
-    echo "$install_profiler"
-    printf '%s\n' "${parsed_args[@]}"
-}
-
 # Main script logic
 main() {
     # Change to script directory
     cd "$(dirname "$0")"
-    
-    # Parse arguments to extract flags
-    local parsed_output
-    parsed_output=$(parse_args "$@")
-    local build_only
-    build_only=$(echo "$parsed_output" | head -n1)
-    local include_clean_builds
-    include_clean_builds=$(echo "$parsed_output" | head -n2 | tail -n1)
-    local install_profiler
-    install_profiler=$(echo "$parsed_output" | head -n3 | tail -n1)
-    local args=()
-    while IFS= read -r line; do
-        args+=("$line")
-    done < <(echo "$parsed_output" | tail -n+4)
-    
+
+    local command="${1:-all}"
+    shift || true
+
+    local build_only=false
+    local include_clean_builds=false
+    local install_profiler=false
+    local count="$DEFAULT_MODULE_COUNT"
+
+    # Parse options
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --build-only)
+                build_only=true
+                shift
+                ;;
+            --include-clean-builds)
+                include_clean_builds=true
+                shift
+                ;;
+            --install-gradle-profiler)
+                install_profiler=true
+                shift
+                ;;
+            --ref1)
+                COMPARE_REF1="$2"
+                shift 2
+                ;;
+            --ref2)
+                COMPARE_REF2="$2"
+                shift 2
+                ;;
+            --modes)
+                COMPARE_MODES="$2"
+                shift 2
+                ;;
+            --rerun-non-metro)
+                RERUN_NON_METRO=true
+                shift
+                ;;
+            [0-9]*)
+                # Positional count argument
+                count="$1"
+                shift
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+
     # Install gradle-profiler if requested
     if [ "$install_profiler" = true ]; then
         if ! install_gradle_profiler; then
@@ -968,68 +966,58 @@ main() {
             exit 1
         fi
     fi
-    
+
     # Check prerequisites (skip gradle-profiler check if build-only mode)
     if [ "$build_only" = true ]; then
         print_header "Checking Prerequisites (Build-only mode)"
-        
+
         local missing_tools=()
-        
+
         if ! command -v kotlin &> /dev/null; then
             missing_tools+=("kotlin")
         fi
-        
+
         if ! command -v ./gradlew &> /dev/null; then
             missing_tools+=("gradlew (not executable)")
         fi
-        
+
         if [ ${#missing_tools[@]} -gt 0 ]; then
             print_error "Missing required tools: ${missing_tools[*]}"
             print_error "Please install missing tools and try again"
             exit 1
         fi
-        
+
         print_success "All prerequisites available"
     else
         check_prerequisites
     fi
-    
-    case "${args[0]:-all}" in
-        "all")
-            local count=${args[1]:-$DEFAULT_MODULE_COUNT}
-            validate_count "$count"
+
+    validate_count "$count"
+
+    case "$command" in
+        all)
             run_all_benchmarks "$count" "$build_only" "$include_clean_builds"
             ;;
-        "metro")
-            local count=${args[1]:-$DEFAULT_MODULE_COUNT}
-            validate_count "$count"
+        metro)
             run_mode_benchmark "metro" "" "$count" "$build_only" "$include_clean_builds"
             ;;
-        "anvil-ksp")
-            local count=${args[1]:-$DEFAULT_MODULE_COUNT}
-            validate_count "$count"
+        anvil-ksp)
             run_mode_benchmark "anvil" "ksp" "$count" "$build_only" "$include_clean_builds"
             ;;
-        "anvil-kapt")
-            local count=${args[1]:-$DEFAULT_MODULE_COUNT}
-            validate_count "$count"
+        anvil-kapt)
             run_mode_benchmark "anvil" "kapt" "$count" "$build_only" "$include_clean_builds"
             ;;
-        "kotlin-inject-anvil")
-            local count=${args[1]:-$DEFAULT_MODULE_COUNT}
-            validate_count "$count"
+        kotlin-inject-anvil)
             run_mode_benchmark "kotlin-inject-anvil" "" "$count" "$build_only" "$include_clean_builds"
             ;;
-        "compare")
-            local count=${args[1]:-$DEFAULT_MODULE_COUNT}
-            validate_count "$count"
+        compare)
             run_compare "$count" "$include_clean_builds"
             ;;
-        "help"|"-h"|"--help")
+        help|-h|--help)
             show_usage
             ;;
         *)
-            print_error "Unknown command: ${args[0]}"
+            print_error "Unknown command: $command"
             echo ""
             show_usage
             exit 1
