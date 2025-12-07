@@ -133,8 +133,14 @@ jobs:
           gradle-home-cache-strict-match: true
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
-      - name: Fetch all refs
-        run: git fetch --all
+      - name: Fetch and checkout both refs
+        run: |
+          git fetch --all
+          # Checkout both refs to create local branches so the scripts can find them
+          git checkout "${{ inputs.ref1 }}" || git checkout -b "${{ inputs.ref1 }}" "origin/${{ inputs.ref1 }}"
+          git checkout "${{ inputs.ref2 }}" || git checkout -b "${{ inputs.ref2 }}" "origin/${{ inputs.ref2 }}"
+          # Return to ref1 as the starting point
+          git checkout "${{ inputs.ref1 }}"
 
       - name: Run startup benchmark comparison
         run: |
@@ -210,13 +216,19 @@ jobs:
           gradle-home-cache-strict-match: true
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
+      - name: Fetch and checkout both refs
+        run: |
+          git fetch --all
+          # Checkout both refs to create local branches so the scripts can find them
+          git checkout "${{ inputs.ref1 }}" || git checkout -b "${{ inputs.ref1 }}" "origin/${{ inputs.ref1 }}"
+          git checkout "${{ inputs.ref2 }}" || git checkout -b "${{ inputs.ref2 }}" "origin/${{ inputs.ref2 }}"
+          # Return to ref1 as the starting point
+          git checkout "${{ inputs.ref1 }}"
+
       - name: Install gradle-profiler
         run: |
           cd benchmark
           ./run_benchmarks.sh --install-gradle-profiler help
-
-      - name: Fetch all refs
-        run: git fetch --all
 
       - name: Run build benchmark comparison
         run: |
