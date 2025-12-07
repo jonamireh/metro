@@ -111,62 +111,11 @@ get_ref_safe_name() {
     echo "$ref" | sed 's/[^a-zA-Z0-9._-]/_/g'
 }
 
-# Function to install gradle-profiler from source
-install_gradle_profiler() {
-    print_header "Installing gradle-profiler from source"
+# Source the gradle-profiler installer script
+source "$SCRIPT_DIR/install-gradle-profiler.sh"
 
-    # Install to tmp/ at repo root which is gitignored and persists across checkouts
-    local repo_root
-    repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
-    local tmp_dir="$repo_root/tmp"
-    local profiler_dir="$tmp_dir/gradle-profiler-source"
-    local profiler_bin="$profiler_dir/build/install/gradle-profiler/bin/gradle-profiler"
-    local profiler_repo="https://github.com/gradle/gradle-profiler"
-
-    # Check if gradle-profiler is already built
-    if [ -x "$profiler_bin" ]; then
-        print_success "gradle-profiler already installed at $profiler_bin"
-        # Update PATH to include the profiler
-        export PATH="$(dirname "$profiler_bin"):$PATH"
-        return 0
-    fi
-
-    # Create tmp directory if needed
-    mkdir -p "$tmp_dir"
-
-    # Clone or update the repository
-    if [ -d "$profiler_dir" ]; then
-        print_status "Updating existing gradle-profiler repository"
-        cd "$profiler_dir"
-        git pull origin master
-        cd "$SCRIPT_DIR"
-    else
-        print_status "Cloning gradle-profiler repository"
-        git clone "$profiler_repo" "$profiler_dir"
-    fi
-
-    # Build gradle-profiler
-    print_status "Building gradle-profiler (this may take a few minutes)"
-    cd "$profiler_dir"
-    if ./gradlew installDist; then
-        cd "$SCRIPT_DIR"
-
-        if [ -f "$profiler_bin" ]; then
-            # Update PATH to include the profiler
-            export PATH="$(dirname "$profiler_bin"):$PATH"
-            print_success "gradle-profiler installed successfully"
-            print_status "Installed to: $profiler_bin"
-            return 0
-        else
-            print_error "gradle-profiler binary not found at expected location"
-            return 1
-        fi
-    else
-        cd "$SCRIPT_DIR"
-        print_error "Failed to build gradle-profiler"
-        return 1
-    fi
-}
+# Get the path to gradle-profiler binary
+GRADLE_PROFILER_BIN="$(get_gradle_profiler_bin)"
 
 # Function to check if required tools are available
 check_prerequisites() {
@@ -179,10 +128,7 @@ check_prerequisites() {
     fi
     
     # Check for gradle-profiler (either in PATH or in tmp/)
-    local repo_root
-    repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
-    local profiler_bin="$repo_root/tmp/gradle-profiler-source/build/install/gradle-profiler/bin/gradle-profiler"
-    if ! command -v gradle-profiler &> /dev/null && [ ! -x "$profiler_bin" ]; then
+    if ! command -v gradle-profiler &> /dev/null && [ ! -x "$GRADLE_PROFILER_BIN" ]; then
         missing_tools+=("gradle-profiler")
     fi
     
@@ -193,7 +139,7 @@ check_prerequisites() {
     if [ ${#missing_tools[@]} -gt 0 ]; then
         print_error "Missing required tools: ${missing_tools[*]}"
         print_error "Please install missing tools and try again"
-        print_error "You can use --install-gradle-profiler to install gradle-profiler from source"
+        print_error "You can run benchmark/install-gradle-profiler.sh to install gradle-profiler from source"
         exit 1
     fi
     
@@ -275,16 +221,13 @@ run_scenarios() {
         mkdir -p "$scenario_output_dir"
         
         print_status "Running scenario: $scenario"
-        
+
         # Use gradle-profiler from tmp/ if available, otherwise use system one
         local profiler_cmd="gradle-profiler"
-        local repo_root
-        repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
-        local profiler_bin="$repo_root/tmp/gradle-profiler-source/build/install/gradle-profiler/bin/gradle-profiler"
-        if [ -x "$profiler_bin" ]; then
-            profiler_cmd="$profiler_bin"
+        if [ -x "$GRADLE_PROFILER_BIN" ]; then
+            profiler_cmd="$GRADLE_PROFILER_BIN"
         fi
-        
+
         $profiler_cmd \
             --benchmark \
             --scenario-file benchmark.scenarios \
@@ -499,7 +442,6 @@ show_usage() {
     echo "  COUNT                        Number of modules to generate (default: $DEFAULT_MODULE_COUNT)"
     echo "  --build-only                 Only run ./gradlew :app:component:run --quiet, skip gradle-profiler"
     echo "  --include-clean-builds       Include clean build scenarios in benchmarks"
-    echo "  --install-gradle-profiler    Install gradle-profiler from source before running benchmarks"
     echo ""
     echo "Compare Options:"
     echo "  --ref1 <ref>                 First git ref (baseline) - branch name or commit hash"
@@ -509,6 +451,10 @@ show_usage() {
     echo "                               Default: metro,anvil-ksp,kotlin-inject-anvil"
     echo "  --rerun-non-metro            Re-run non-metro modes on ref2 (default: only run metro on ref2)"
     echo "                               When disabled (default), ref2 uses ref1's non-metro results for comparison"
+    echo ""
+    echo "Prerequisites:"
+    echo "  Run benchmark/install-gradle-profiler.sh to install gradle-profiler from source"
+    echo "  Or pass --install-gradle-profiler to install before running benchmarks"
     echo ""
     echo "Examples:"
     echo "  $0                           # Run all benchmarks with default settings"
@@ -520,8 +466,6 @@ show_usage() {
     echo "  $0 all --build-only          # Generate and build all projects, skip benchmarks"
     echo "  $0 all --include-clean-builds # Run all benchmarks including clean build scenarios"
     echo "  $0 metro 250 --include-clean-builds # Run Metro benchmarks with 250 modules including clean builds"
-    echo "  $0 --install-gradle-profiler # Install gradle-profiler from source then run all benchmarks"
-    echo "  $0 metro --install-gradle-profiler # Install gradle-profiler then run Metro benchmarks"
     echo ""
     echo "  # Compare benchmarks across git refs:"
     echo "  $0 compare --ref1 main --ref2 feature-branch"

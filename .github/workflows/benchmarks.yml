@@ -226,9 +226,7 @@ jobs:
           git checkout "${{ inputs.ref1 }}"
 
       - name: Install gradle-profiler
-        run: |
-          cd benchmark
-          ./run_benchmarks.sh --install-gradle-profiler help
+        run: ./benchmark/install-gradle-profiler.sh
 
       - name: Run build benchmark comparison
         run: |
