@@ -115,8 +115,8 @@ get_generator_args() {
 get_gradle_args() {
     local mode="$1"
     case "$mode" in
-        anvil-ksp|kotlin-inject-anvil)
-            # Disable incremental processing and build cache to avoid flaky KSP builds
+        anvil-ksp|anvil-kapt|kotlin-inject-anvil)
+            # Disable incremental processing and build cache to avoid flaky KSP/KAPT builds
             echo "--no-build-cache -Pksp.incremental=false -Pkotlin.incremental=false"
             ;;
         *)
@@ -125,17 +125,21 @@ get_gradle_args() {
     esac
 }
 
-# Run JMH benchmark for a specific mode
-run_jvm_benchmark() {
+# Setup project for a specific mode (clean and generate)
+setup_for_mode() {
     local mode="$1"
-    local output_dir="$RESULTS_DIR/${TIMESTAMP}/jvm_${mode}"
-    mkdir -p "$output_dir"
-
     clean_build_artifacts
 
     print_step "Generating project for $mode..."
     local gen_args=$(get_generator_args "$mode")
     kotlin generate-projects.main.kts $gen_args --count "$MODULE_COUNT" > /dev/null
+}
+
+# Run JMH benchmark only (no clean/generate)
+run_jvm_benchmark_only() {
+    local mode="$1"
+    local output_dir="$RESULTS_DIR/${TIMESTAMP}/jvm_${mode}"
+    mkdir -p "$output_dir"
 
     print_step "Running JMH benchmark for $mode..."
 
@@ -154,17 +158,18 @@ run_jvm_benchmark() {
     fi
 }
 
-# Run Android benchmark for a specific mode
-run_android_benchmark() {
+# Run JMH benchmark for a specific mode (with clean/generate)
+run_jvm_benchmark() {
+    local mode="$1"
+    setup_for_mode "$mode"
+    run_jvm_benchmark_only "$mode"
+}
+
+# Run Android benchmark only (no clean/generate)
+run_android_benchmark_only() {
     local mode="$1"
     local output_dir="$RESULTS_DIR/${TIMESTAMP}/android_${mode}"
     mkdir -p "$output_dir"
-
-    clean_build_artifacts
-
-    print_step "Generating project for $mode..."
-    local gen_args=$(get_generator_args "$mode")
-    kotlin generate-projects.main.kts $gen_args --count "$MODULE_COUNT" > /dev/null
 
     local gradle_args=$(get_gradle_args "$mode")
 
@@ -200,6 +205,13 @@ run_android_benchmark() {
         print_error "Android microbenchmark failed for $mode"
         return 1
     fi
+}
+
+# Run Android benchmark for a specific mode (with clean/generate)
+run_android_benchmark() {
+    local mode="$1"
+    setup_for_mode "$mode"
+    run_android_benchmark_only "$mode"
 }
 
 # Extract JMH score from results
@@ -449,6 +461,27 @@ run_android_benchmarks() {
     done
 }
 
+# Run all benchmarks grouped by mode (build once per mode)
+run_all_benchmarks() {
+    print_header "Running All Startup Benchmarks (Grouped by Mode)"
+
+    IFS=',' read -ra MODE_ARRAY <<< "$MODES"
+    for mode in "${MODE_ARRAY[@]}"; do
+        print_header "Benchmarking: $mode"
+
+        # Setup once for this mode
+        setup_for_mode "$mode"
+
+        # Run JVM benchmarks
+        print_info "Running JVM benchmarks for $mode..."
+        run_jvm_benchmark_only "$mode" || true
+
+        # Run Android benchmarks (reuses the same generated project)
+        print_info "Running Android benchmarks for $mode..."
+        run_android_benchmark_only "$mode" || true
+    done
+}
+
 main() {
     local command="${1:-all}"
     shift || true
@@ -488,8 +521,7 @@ main() {
             generate_summary
             ;;
         all)
-            run_jvm_benchmarks
-            run_android_benchmarks
+            run_all_benchmarks
             generate_summary
             ;;
         summary)
