@@ -47,6 +47,11 @@ on:
         required: false
         type: boolean
         default: true
+      rerun-non-metro:
+        description: 'Re-run non-metro modes on ref2 (default: only metro, uses ref1 results for others)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   # Shared job to validate inputs and build modes string
@@ -129,12 +134,17 @@ jobs:
       - name: Run startup benchmark comparison
         run: |
           cd benchmark
+          RERUN_FLAG=""
+          if [ "${{ inputs.rerun-non-metro }}" = "true" ]; then
+            RERUN_FLAG="--rerun-non-metro"
+          fi
           ./run_startup_benchmarks.sh compare \
             --ref1 "${{ inputs.ref1 }}" \
             --ref2 "${{ inputs.ref2 }}" \
             --modes "${{ needs.validate.outputs.modes }}" \
             --count "${{ inputs.module_count }}" \
-            --benchmark jvm
+            --benchmark jvm \
+            $RERUN_FLAG
 
       - name: Find results directory
         id: results
@@ -203,10 +213,15 @@ jobs:
       - name: Run build benchmark comparison
         run: |
           cd benchmark
+          RERUN_FLAG=""
+          if [ "${{ inputs.rerun-non-metro }}" = "true" ]; then
+            RERUN_FLAG="--rerun-non-metro"
+          fi
           ./run_benchmarks.sh compare \
             --ref1 "${{ inputs.ref1 }}" \
             --ref2 "${{ inputs.ref2 }}" \
             --modes "${{ needs.validate.outputs.modes }}" \
+            $RERUN_FLAG \
             ${{ inputs.module_count }}
 
       - name: Find results directory
