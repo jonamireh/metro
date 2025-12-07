@@ -7,6 +7,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Configuration
 DEFAULT_MODULE_COUNT=500
 RESULTS_DIR="benchmark-results"
@@ -112,48 +114,55 @@ get_ref_safe_name() {
 # Function to install gradle-profiler from source
 install_gradle_profiler() {
     print_header "Installing gradle-profiler from source"
-    
-    # Check if local gradle-profiler symlink already exists
-    if [ -x "./gradle-profiler" ]; then
-        print_success "Local gradle-profiler already exists, skipping installation"
-        print_status "Using existing: ./gradle-profiler"
+
+    # Install to tmp/ at repo root which is gitignored and persists across checkouts
+    local repo_root
+    repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+    local tmp_dir="$repo_root/tmp"
+    local profiler_dir="$tmp_dir/gradle-profiler-source"
+    local profiler_bin="$profiler_dir/build/install/gradle-profiler/bin/gradle-profiler"
+    local profiler_repo="https://github.com/gradle/gradle-profiler"
+
+    # Check if gradle-profiler is already built
+    if [ -x "$profiler_bin" ]; then
+        print_success "gradle-profiler already installed at $profiler_bin"
+        # Update PATH to include the profiler
+        export PATH="$(dirname "$profiler_bin"):$PATH"
         return 0
     fi
-    
-    local profiler_dir="gradle-profiler-source"
-    local profiler_repo="https://github.com/gradle/gradle-profiler"
-    
+
+    # Create tmp directory if needed
+    mkdir -p "$tmp_dir"
+
     # Clone or update the repository
     if [ -d "$profiler_dir" ]; then
         print_status "Updating existing gradle-profiler repository"
         cd "$profiler_dir"
         git pull origin master
-        cd ..
+        cd "$SCRIPT_DIR"
     else
         print_status "Cloning gradle-profiler repository"
         git clone "$profiler_repo" "$profiler_dir"
     fi
-    
+
     # Build gradle-profiler
     print_status "Building gradle-profiler (this may take a few minutes)"
     cd "$profiler_dir"
     if ./gradlew installDist; then
-        local profiler_bin
-        profiler_bin="$(pwd)/build/install/gradle-profiler/bin/gradle-profiler"
-        cd ..
-        
-        # Create a symlink or alias in the benchmark directory
+        cd "$SCRIPT_DIR"
+
         if [ -f "$profiler_bin" ]; then
-            ln -sf "$profiler_bin" ./gradle-profiler
+            # Update PATH to include the profiler
+            export PATH="$(dirname "$profiler_bin"):$PATH"
             print_success "gradle-profiler installed successfully"
-            print_status "Created symlink: ./gradle-profiler -> $profiler_bin"
+            print_status "Installed to: $profiler_bin"
             return 0
         else
             print_error "gradle-profiler binary not found at expected location"
             return 1
         fi
     else
-        cd ..
+        cd "$SCRIPT_DIR"
         print_error "Failed to build gradle-profiler"
         return 1
     fi
@@ -169,8 +178,11 @@ check_prerequisites() {
         missing_tools+=("kotlin")
     fi
     
-    # Check for gradle-profiler (either in PATH or local symlink)
-    if ! command -v gradle-profiler &> /dev/null && [ ! -x "./gradle-profiler" ]; then
+    # Check for gradle-profiler (either in PATH or in tmp/)
+    local repo_root
+    repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+    local profiler_bin="$repo_root/tmp/gradle-profiler-source/build/install/gradle-profiler/bin/gradle-profiler"
+    if ! command -v gradle-profiler &> /dev/null && [ ! -x "$profiler_bin" ]; then
         missing_tools+=("gradle-profiler")
     fi
     
@@ -264,10 +276,13 @@ run_scenarios() {
         
         print_status "Running scenario: $scenario"
         
-        # Use local gradle-profiler if available, otherwise use system one
+        # Use gradle-profiler from tmp/ if available, otherwise use system one
         local profiler_cmd="gradle-profiler"
-        if [ -x "./gradle-profiler" ]; then
-            profiler_cmd="./gradle-profiler"
+        local repo_root
+        repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+        local profiler_bin="$repo_root/tmp/gradle-profiler-source/build/install/gradle-profiler/bin/gradle-profiler"
+        if [ -x "$profiler_bin" ]; then
+            profiler_cmd="$profiler_bin"
         fi
         
         $profiler_cmd \
