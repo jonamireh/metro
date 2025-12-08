@@ -1,8 +1,21 @@
 # Performance
 
-Metro strives to be a performant solution with minimal overhead at build-time and generating fast, efficient code at runtime. As build performance is the primary consideration for most developers considering this, most of this doc will be focused on that.
+Metro strives to be a performant solution with minimal overhead at build-time and generating fast, efficient code at runtime.
 
-## Build Performance
+## Benchmarks
+
+To benchmark against anvil-ksp + dagger-ksp, anvil-ksp + dagger-kapt, and kotlin-inject-anvil + kotlin-inject, there is a [benchmark](https://github.com/ZacSweers/metro/tree/main/benchmark) directory with a generator script. There are more details in its README, but in short it generates a nontrivial multi-module project (default is 500 modules but is configurable) and benchmarks with gradle-profiler.
+
+The below sections describe the two scenarios Metro's benchmarks run against using this project generation.
+
+**Modes**
+
+- `Metro`: Purely running metro
+- `Anvil KSP`: Running dagger-ksp with anvil-ksp for contribution merging.
+- `Anvil KAPT`: Running dagger with kapt with anvil-ksp for contribution merging.
+- `Kotlin Inject`: Running kotlin-inject + kotlin-inject-anvil for contribution merging.
+
+### Build Performance
 
 Metro's compiler plugin is designed to be _fast_. Running as a compiler plugin allows it to:
 - Avoid generating new sources that need to be compiled
@@ -12,9 +25,9 @@ Metro's compiler plugin is designed to be _fast_. Running as a compiler plugin a
 
 **In a straightforward migration, it improves ABI-changing build performance from 30-70%.**
 
-### Benchmarking
+#### Methodology
 
-To benchmark against Anvil-KSP, Dagger (KSP or KAPT), and Kotlin-Inject (+ Anvil), there is a [benchmark](https://github.com/ZacSweers/metro/tree/main/benchmark) directory with a generator script. There are more details in its README, but in short it generates a nontrivial multi-module project (default is 500 modules but is configurable) and benchmarks with gradle-profiler.
+This benchmark uses [gradle-profiler](https://github.com/gradle/gradle-profiler) to benchmark build performance using different tools.
 
 !!! tip "Summary"
     Results as of Metro `0.3.7`, Anvil-KSP `0.4.1`, Dagger `2.56.2`, and Kotlin-Inject `0.8.0` with kotlin-inject-anvil `0.1.6` are as follows.
@@ -27,34 +40,62 @@ To benchmark against Anvil-KSP, Dagger (KSP or KAPT), and Kotlin-Inject (+ Anvil
     | **Non-ABI**          | 2.6s  | 3.8s (+45%)   | 7.1s (+171%)  | 3.3s (+26%)   | 
     | **Graph processing** | 6.9s  | 28.9s (+318%) | 8.7s (+25%)   | 11s (+59%)    |
 
-#### Modes
-
-- Metro: Purely running metro
-- Anvil KSP: Running dagger-ksp with anvil-ksp for contribution merging.
-- Anvil KAPT: Running dagger with kapt with anvil-ksp for contribution merging.
-- Kotlin Inject: Running kotlin-inject + kotlin-inject-anvil for contribution merging.
-
-#### ABI Change
+##### ABI Change
 
 This benchmark makes ABI-breaking source changes in a lower level module. This is where Metro shines the most.
 
-![](benchmark_images/benchmark_abi.png)
+![](benchmark_assets/benchmark_abi.png)
 
-#### Non-ABI Change
+##### Non-ABI Change
 
 This benchmark makes non-ABI-breaking source changes in a lower level module. The differences are less significant here as KSP is quite good at compilation avoidance now too. The outlier here is KAPT, which still has to run stub gen + apt and cannot fully avoid it.
 
-![](benchmark_images/benchmark_noabi.png)
+![](benchmark_assets/benchmark_noabi.png)
 
-#### Raw Graph/Component Processing
+##### Raw Graph/Component Processing
 
 This benchmark reruns the top-level merging graph/component where all the downstream contributions are merged. This also builds the full dependency graph and any contributed graph extensions/subcomponents.
 
 Metro again shines here. Dagger-KSP seems to have a bottleneck that disproportionately affects it here too.
 
-![](benchmark_images/benchmark_graph_component.png)
+![](benchmark_assets/benchmark_graph_component.png)
 
-### Real-World Results
+### Runtime Performance
+
+Metro's compiler generates Dagger-style factory classes for every injection site. The same factory classes are reused across modules and downstream builds, so there's no duplicated glue code or runtime discovery cost.
+
+Because the full dependency graph is wired at compile-time, each binding is accessed through a direct provider field reference or direct invocation in the generated code. No reflection, no hashmap lookups, no runtime service locator hops, etc.
+
+#### Methodology
+
+To measure and compare runtime performance, Metro benchmarks graph initialization time across different DI frameworks. These benchmarks measure the time to create and initialize a dependency graph with 500 modules' worth of bindings.
+
+!!! note "Interactive Report"
+    View the [full interactive benchmark report](benchmark_assets/startup-benchmark-report.html) for detailed results including environment information.
+
+#### JVM Startup
+
+These benchmarks run with JMH.
+
+On the JVM, Metro, anvil-ksp + dagger-ksp, and anvil-ksp + dagger-kapt all perform nearly identically since they generate similar factory-based code. kotlin-inject is slightly slower due to its different code generation approach.
+
+![](benchmark_assets/runtime_jvm.png)
+
+#### JVM Startup (R8 Minified)
+
+These benchmarks run with JMH on an R8-minified jar of the same built project.
+
+With R8 minification enabled, Metro shows a slight edge. The benefits of compile-time wiring become more apparent as R8 can further optimize the generated code.
+
+![](benchmark_assets/runtime_jvm_r8.png)
+
+#### Android Graph Init
+
+On Android, the differences become more pronounced. Metro and Dagger perform similarly well, while kotlin-inject shows a significant performance gap.
+
+![](benchmark_assets/runtime_android.png)
+
+## Real-World Results
 
 Below are some results from real-world projects, shared with the developers' permission.
 
@@ -104,7 +145,7 @@ Below are some results from real-world projects, shared with the developers' per
 
     > We already had incremental compilation in the single-digit seconds range, but I’m still blown away by how much faster it is now that the entire codebase is fully on Metro. 🤯
 
-### Reporting
+## Reporting
 
 If you want to investigate the performance of different stages of Metro's compiler pipeline, you can enable reporting in the Gradle DSL.
 
@@ -164,11 +205,3 @@ Among the reports written there, there will also be a trace log that dumps a sim
   ◀ Transform metro graph (xx ms)
 [ExampleGraph] ◀ Transform dependency graph (xx ms)
 ```
-
-## Runtime Performance
-
-Metro’s compiler generates Dagger-style factory classes for every injection site.
-
-The same factory classes are reused across modules and downstream builds, so there’s no duplicated glue code or runtime discovery cost.
-
-Because the full dependency graph is wired at compile-time, each binding is accessed through a direct field reference in the generated code. No reflection, no hashmap lookups, no runtime service locator hops, etc.
