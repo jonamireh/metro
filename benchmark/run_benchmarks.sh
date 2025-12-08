@@ -692,11 +692,18 @@ EOF
         local test_type="${test_types[$i]}"
         local test_name="${test_names[$i]}"
 
+        # Get metro scores for this test type to use as baseline for "vs Metro" column
+        local metro_score1=$(extract_median_for_ref "$ref1_label" "metro" "$test_type")
+        local metro_score2=""
+        if mode_was_run_for_ref "$ref2_label" "metro"; then
+            metro_score2=$(extract_median_for_ref "$ref2_label" "metro" "$test_type")
+        fi
+
         cat >> "$summary_file" << EOF
 ## $test_name
 
-| Framework | $ref1_label (baseline) | $ref2_label | Difference |
-|-----------|------------------------|-------------|------------|
+| Framework | $ref1_label | vs Metro | $ref2_label | vs Metro | Difference |
+|-----------|-------------|----------|-------------|----------|------------|
 EOF
 
         for mode in "${MODE_ARRAY[@]}"; do
@@ -724,12 +731,24 @@ EOF
 
             local display1="N/A"
             local display2="N/A"
+            local vs_metro1="—"
+            local vs_metro2="—"
             local diff="-"
 
             if [ -n "$score1" ]; then
                 local secs1=$(echo "scale=1; $score1 / 1000" | bc 2>/dev/null || echo "")
                 if [ -n "$secs1" ]; then
                     display1="${secs1}s"
+                fi
+                # Calculate vs Metro for ref1
+                if [ "$mode" = "metro" ]; then
+                    vs_metro1="baseline"
+                elif [ -n "$metro_score1" ] && [ "$metro_score1" != "0" ]; then
+                    local pct1=$(echo "scale=0; ($score1 / $metro_score1) * 100" | bc 2>/dev/null || echo "")
+                    local mult1=$(echo "scale=1; $score1 / $metro_score1" | bc 2>/dev/null || echo "")
+                    if [ -n "$pct1" ] && [ -n "$mult1" ]; then
+                        vs_metro1="+${pct1}% (${mult1}x)"
+                    fi
                 fi
             fi
 
@@ -738,6 +757,16 @@ EOF
                     local secs2=$(echo "scale=1; $score2 / 1000" | bc 2>/dev/null || echo "")
                     if [ -n "$secs2" ]; then
                         display2="${secs2}s"
+                    fi
+                    # Calculate vs Metro for ref2
+                    if [ "$mode" = "metro" ]; then
+                        vs_metro2="baseline"
+                    elif [ -n "$metro_score2" ] && [ "$metro_score2" != "0" ]; then
+                        local pct2=$(echo "scale=0; ($score2 / $metro_score2) * 100" | bc 2>/dev/null || echo "")
+                        local mult2=$(echo "scale=1; $score2 / $metro_score2" | bc 2>/dev/null || echo "")
+                        if [ -n "$pct2" ] && [ -n "$mult2" ]; then
+                            vs_metro2="+${pct2}% (${mult2}x)"
+                        fi
                     fi
                 fi
 
@@ -760,7 +789,7 @@ EOF
                 diff="n/a"
             fi
 
-            echo "| $mode | $display1 | $display2 | $diff |" >> "$summary_file"
+            echo "| $mode | $display1 | $vs_metro1 | $display2 | $vs_metro2 | $diff |" >> "$summary_file"
         done
 
         echo "" >> "$summary_file"
@@ -810,11 +839,14 @@ EOF
         local test_type="${test_types[$i]}"
         local test_name="${test_names[$i]}"
 
+        # Get metro score for this test type to use as baseline
+        local metro_score=$(extract_median_for_ref "$ref_label" "metro" "$test_type")
+
         cat >> "$summary_file" << EOF
 ## $test_name
 
-| Framework | Time |
-|-----------|------|
+| Framework | Time | vs Metro |
+|-----------|------|----------|
 EOF
 
         for mode in "${MODE_ARRAY[@]}"; do
@@ -830,14 +862,26 @@ EOF
             local score=$(extract_median_for_ref "$ref_label" "$mode_prefix" "$test_type")
 
             local display="N/A"
+            local vs_metro="—"
+
             if [ -n "$score" ]; then
                 local secs=$(echo "scale=1; $score / 1000" | bc 2>/dev/null || echo "")
                 if [ -n "$secs" ]; then
                     display="${secs}s"
                 fi
+                # Calculate vs Metro
+                if [ "$mode" = "metro" ]; then
+                    vs_metro="baseline"
+                elif [ -n "$metro_score" ] && [ "$metro_score" != "0" ]; then
+                    local pct=$(echo "scale=0; ($score / $metro_score) * 100" | bc 2>/dev/null || echo "")
+                    local mult=$(echo "scale=1; $score / $metro_score" | bc 2>/dev/null || echo "")
+                    if [ -n "$pct" ] && [ -n "$mult" ]; then
+                        vs_metro="+${pct}% (${mult}x)"
+                    fi
+                fi
             fi
 
-            echo "| $mode | $display |" >> "$summary_file"
+            echo "| $mode | $display | $vs_metro |" >> "$summary_file"
         done
 
         echo "" >> "$summary_file"

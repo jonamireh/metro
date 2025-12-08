@@ -785,13 +785,20 @@ generate_comparison_summary() {
 EOF
 
     if [ "$benchmark_type" = "jvm" ] || [ "$benchmark_type" = "all" ]; then
+        # Get metro scores for "vs Metro" column
+        local metro_jvm_score1=$(extract_jmh_score_for_ref "$ref1_label" "metro")
+        local metro_jvm_score2=""
+        if mode_was_run_for_ref "$ref2_label" "metro" "jvm"; then
+            metro_jvm_score2=$(extract_jmh_score_for_ref "$ref2_label" "metro")
+        fi
+
         cat >> "$summary_file" << EOF
 ## JVM Benchmarks (JMH)
 
 Graph creation and initialization time (lower is better):
 
-| Framework | $ref1_label (baseline) | $ref2_label | Difference |
-|-----------|------------------------|-------------|------------|
+| Framework | $ref1_label | vs Metro | $ref2_label | vs Metro | Difference |
+|-----------|-------------|----------|-------------|----------|------------|
 EOF
 
         for mode in "${MODE_ARRAY[@]}"; do
@@ -805,6 +812,8 @@ EOF
 
             local score2=""
             local display2="N/A"
+            local vs_metro1="—"
+            local vs_metro2="—"
             local diff="-"
 
             if [ "$mode_ran_on_ref2" = true ]; then
@@ -823,22 +832,45 @@ EOF
             local display1="${score1:-N/A}"
             if [ -n "$score1" ]; then
                 display1=$(printf "%.3f ms" "$score1")
-            fi
-
-            if [ -n "$score1" ] && [ -n "$score2" ] && [ "$score1" != "0" ]; then
-                local pct=$(printf "%.1f" "$(echo "scale=4; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
-                if [ -n "$pct" ]; then
-                    if [[ "$pct" == -* ]]; then
-                        diff="${pct}% (faster)"
-                    elif [[ "$pct" == "0.0" ]]; then
-                        diff="no change"
-                    else
-                        diff="+${pct}% (slower)"
+                # Calculate vs Metro for ref1
+                if [ "$mode" = "metro" ]; then
+                    vs_metro1="baseline"
+                elif [ -n "$metro_jvm_score1" ] && [ "$metro_jvm_score1" != "0" ]; then
+                    local pct1=$(printf "%.0f" "$(echo "scale=4; ($score1 / $metro_jvm_score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    local mult1=$(printf "%.1f" "$(echo "scale=4; $score1 / $metro_jvm_score1" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    if [ -n "$pct1" ] && [ -n "$mult1" ]; then
+                        vs_metro1="+${pct1}% (${mult1}x)"
                     fi
                 fi
             fi
 
-            echo "| $mode | $display1 | $display2 | $diff |" >> "$summary_file"
+            # Calculate vs Metro for ref2
+            if [ -n "$score2" ]; then
+                if [ "$mode" = "metro" ]; then
+                    vs_metro2="baseline"
+                elif [ -n "$metro_jvm_score2" ] && [ "$metro_jvm_score2" != "0" ]; then
+                    local pct2=$(printf "%.0f" "$(echo "scale=4; ($score2 / $metro_jvm_score2) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    local mult2=$(printf "%.1f" "$(echo "scale=4; $score2 / $metro_jvm_score2" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    if [ -n "$pct2" ] && [ -n "$mult2" ]; then
+                        vs_metro2="+${pct2}% (${mult2}x)"
+                    fi
+                fi
+            fi
+
+            if [ -n "$score1" ] && [ -n "$score2" ] && [ "$score1" != "0" ]; then
+                local pct=$(printf "%.2f" "$(echo "scale=4; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                if [ -n "$pct" ]; then
+                    if [[ "$pct" == -* ]]; then
+                        diff="${pct}%"
+                    elif [[ "$pct" == "0.00" ]]; then
+                        diff="+0.00% (no change)"
+                    else
+                        diff="+${pct}%"
+                    fi
+                fi
+            fi
+
+            echo "| $mode | $display1 | $vs_metro1 | $display2 | $vs_metro2 | $diff |" >> "$summary_file"
         done
 
         echo "" >> "$summary_file"
@@ -856,13 +888,20 @@ EOF
         fi
 
         if [ "$INCLUDE_MACROBENCHMARK" = true ] || [ "$has_macro_results" = true ]; then
+            # Get metro scores for "vs Metro" column
+            local metro_macro_score1=$(extract_android_macro_score_for_ref "$ref1_label" "metro")
+            local metro_macro_score2=""
+            if mode_was_run_for_ref "$ref2_label" "metro" "android"; then
+                metro_macro_score2=$(extract_android_macro_score_for_ref "$ref2_label" "metro")
+            fi
+
             cat >> "$summary_file" << EOF
 ## Android Benchmarks (Macrobenchmark)
 
 Cold startup time including graph initialization (lower is better):
 
-| Framework | $ref1_label (baseline) | $ref2_label | Difference |
-|-----------|------------------------|-------------|------------|
+| Framework | $ref1_label | vs Metro | $ref2_label | vs Metro | Difference |
+|-----------|-------------|----------|-------------|----------|------------|
 EOF
 
             for mode in "${MODE_ARRAY[@]}"; do
@@ -876,6 +915,8 @@ EOF
 
                 local score2=""
                 local display2="N/A"
+                local vs_metro1="—"
+                local vs_metro2="—"
                 local diff="-"
 
                 if [ "$mode_ran_on_ref2" = true ]; then
@@ -894,25 +935,55 @@ EOF
                 local display1="${score1:-N/A}"
                 if [ -n "$score1" ]; then
                     display1=$(printf "%.0f ms" "$score1")
-                fi
-
-                if [ -n "$score1" ] && [ -n "$score2" ] && [ "$score1" != "0" ]; then
-                    local pct=$(printf "%.1f" "$(echo "scale=4; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
-                    if [ -n "$pct" ]; then
-                        if [[ "$pct" == -* ]]; then
-                            diff="${pct}% (faster)"
-                        elif [[ "$pct" == "0.0" ]]; then
-                            diff="no change"
-                        else
-                            diff="+${pct}% (slower)"
+                    # Calculate vs Metro for ref1
+                    if [ "$mode" = "metro" ]; then
+                        vs_metro1="baseline"
+                    elif [ -n "$metro_macro_score1" ] && [ "$metro_macro_score1" != "0" ]; then
+                        local pct1=$(printf "%.0f" "$(echo "scale=4; ($score1 / $metro_macro_score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                        local mult1=$(printf "%.1f" "$(echo "scale=4; $score1 / $metro_macro_score1" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                        if [ -n "$pct1" ] && [ -n "$mult1" ]; then
+                            vs_metro1="+${pct1}% (${mult1}x)"
                         fi
                     fi
                 fi
 
-                echo "| $mode | $display1 | $display2 | $diff |" >> "$summary_file"
+                # Calculate vs Metro for ref2
+                if [ -n "$score2" ]; then
+                    if [ "$mode" = "metro" ]; then
+                        vs_metro2="baseline"
+                    elif [ -n "$metro_macro_score2" ] && [ "$metro_macro_score2" != "0" ]; then
+                        local pct2=$(printf "%.0f" "$(echo "scale=4; ($score2 / $metro_macro_score2) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                        local mult2=$(printf "%.1f" "$(echo "scale=4; $score2 / $metro_macro_score2" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                        if [ -n "$pct2" ] && [ -n "$mult2" ]; then
+                            vs_metro2="+${pct2}% (${mult2}x)"
+                        fi
+                    fi
+                fi
+
+                if [ -n "$score1" ] && [ -n "$score2" ] && [ "$score1" != "0" ]; then
+                    local pct=$(printf "%.2f" "$(echo "scale=4; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    if [ -n "$pct" ]; then
+                        if [[ "$pct" == -* ]]; then
+                            diff="${pct}%"
+                        elif [[ "$pct" == "0.00" ]]; then
+                            diff="+0.00% (no change)"
+                        else
+                            diff="+${pct}%"
+                        fi
+                    fi
+                fi
+
+                echo "| $mode | $display1 | $vs_metro1 | $display2 | $vs_metro2 | $diff |" >> "$summary_file"
             done
 
             echo "" >> "$summary_file"
+        fi
+
+        # Get metro scores for "vs Metro" column in microbenchmark
+        local metro_micro_score1=$(extract_android_micro_score_for_ref "$ref1_label" "metro")
+        local metro_micro_score2=""
+        if mode_was_run_for_ref "$ref2_label" "metro" "android"; then
+            metro_micro_score2=$(extract_android_micro_score_for_ref "$ref2_label" "metro")
         fi
 
         cat >> "$summary_file" << EOF
@@ -920,8 +991,8 @@ EOF
 
 Graph creation and initialization time on Android (lower is better):
 
-| Framework | $ref1_label (baseline) | $ref2_label | Difference |
-|-----------|------------------------|-------------|------------|
+| Framework | $ref1_label | vs Metro | $ref2_label | vs Metro | Difference |
+|-----------|-------------|----------|-------------|----------|------------|
 EOF
 
         for mode in "${MODE_ARRAY[@]}"; do
@@ -935,6 +1006,8 @@ EOF
 
             local score2=""
             local display2="N/A"
+            local vs_metro1="—"
+            local vs_metro2="—"
             local diff="-"
 
             if [ "$mode_ran_on_ref2" = true ]; then
@@ -953,22 +1026,45 @@ EOF
             local display1="${score1:-N/A}"
             if [ -n "$score1" ]; then
                 display1=$(printf "%.3f ms" "$score1")
-            fi
-
-            if [ -n "$score1" ] && [ -n "$score2" ] && [ "$score1" != "0" ]; then
-                local pct=$(printf "%.1f" "$(echo "scale=4; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
-                if [ -n "$pct" ]; then
-                    if [[ "$pct" == -* ]]; then
-                        diff="${pct}% (faster)"
-                    elif [[ "$pct" == "0.0" ]]; then
-                        diff="no change"
-                    else
-                        diff="+${pct}% (slower)"
+                # Calculate vs Metro for ref1
+                if [ "$mode" = "metro" ]; then
+                    vs_metro1="baseline"
+                elif [ -n "$metro_micro_score1" ] && [ "$metro_micro_score1" != "0" ]; then
+                    local pct1=$(printf "%.0f" "$(echo "scale=4; ($score1 / $metro_micro_score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    local mult1=$(printf "%.1f" "$(echo "scale=4; $score1 / $metro_micro_score1" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    if [ -n "$pct1" ] && [ -n "$mult1" ]; then
+                        vs_metro1="+${pct1}% (${mult1}x)"
                     fi
                 fi
             fi
 
-            echo "| $mode | $display1 | $display2 | $diff |" >> "$summary_file"
+            # Calculate vs Metro for ref2
+            if [ -n "$score2" ]; then
+                if [ "$mode" = "metro" ]; then
+                    vs_metro2="baseline"
+                elif [ -n "$metro_micro_score2" ] && [ "$metro_micro_score2" != "0" ]; then
+                    local pct2=$(printf "%.0f" "$(echo "scale=4; ($score2 / $metro_micro_score2) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    local mult2=$(printf "%.1f" "$(echo "scale=4; $score2 / $metro_micro_score2" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    if [ -n "$pct2" ] && [ -n "$mult2" ]; then
+                        vs_metro2="+${pct2}% (${mult2}x)"
+                    fi
+                fi
+            fi
+
+            if [ -n "$score1" ] && [ -n "$score2" ] && [ "$score1" != "0" ]; then
+                local pct=$(printf "%.2f" "$(echo "scale=4; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                if [ -n "$pct" ]; then
+                    if [[ "$pct" == -* ]]; then
+                        diff="${pct}%"
+                    elif [[ "$pct" == "0.00" ]]; then
+                        diff="+0.00% (no change)"
+                    else
+                        diff="+${pct}%"
+                    fi
+                fi
+            fi
+
+            echo "| $mode | $display1 | $vs_metro1 | $display2 | $vs_metro2 | $diff |" >> "$summary_file"
         done
 
         echo "" >> "$summary_file"
@@ -1011,22 +1107,36 @@ EOF
     IFS=',' read -ra MODE_ARRAY <<< "$MODES"
 
     if [ "$benchmark_type" = "jvm" ] || [ "$benchmark_type" = "all" ]; then
+        # Get metro score for "vs Metro" column
+        local metro_jvm_score=$(extract_jmh_score_for_ref "$ref_label" "metro")
+
         cat >> "$summary_file" << EOF
 ## JVM Benchmarks (JMH)
 
 Graph creation and initialization time (lower is better):
 
-| Framework | Time (ms) |
-|-----------|-----------|
+| Framework | Time (ms) | vs Metro |
+|-----------|-----------|----------|
 EOF
 
         for mode in "${MODE_ARRAY[@]}"; do
             local score=$(extract_jmh_score_for_ref "$ref_label" "$mode")
             local display="${score:-N/A}"
+            local vs_metro="—"
+
             if [ -n "$score" ]; then
                 display=$(printf "%.3f" "$score")
+                if [ "$mode" = "metro" ]; then
+                    vs_metro="baseline"
+                elif [ -n "$metro_jvm_score" ] && [ "$metro_jvm_score" != "0" ]; then
+                    local pct=$(printf "%.0f" "$(echo "scale=4; ($score / $metro_jvm_score) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    local mult=$(printf "%.1f" "$(echo "scale=4; $score / $metro_jvm_score" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    if [ -n "$pct" ] && [ -n "$mult" ]; then
+                        vs_metro="+${pct}% (${mult}x)"
+                    fi
+                fi
             fi
-            echo "| $mode | $display |" >> "$summary_file"
+            echo "| $mode | $display | $vs_metro |" >> "$summary_file"
         done
 
         echo "" >> "$summary_file"
@@ -1044,43 +1154,71 @@ EOF
         done
 
         if [ "$INCLUDE_MACROBENCHMARK" = true ] || [ "$has_macro_results" = true ]; then
+            # Get metro score for "vs Metro" column
+            local metro_macro_score=$(extract_android_macro_score_for_ref "$ref_label" "metro")
+
             cat >> "$summary_file" << EOF
 ## Android Benchmarks (Macrobenchmark)
 
 Cold startup time including graph initialization (lower is better):
 
-| Framework | Time (ms) |
-|-----------|-----------|
+| Framework | Time (ms) | vs Metro |
+|-----------|-----------|----------|
 EOF
 
             for mode in "${MODE_ARRAY[@]}"; do
                 local score=$(extract_android_macro_score_for_ref "$ref_label" "$mode")
                 local display="${score:-N/A}"
+                local vs_metro="—"
+
                 if [ -n "$score" ]; then
                     display=$(printf "%.0f" "$score")
+                    if [ "$mode" = "metro" ]; then
+                        vs_metro="baseline"
+                    elif [ -n "$metro_macro_score" ] && [ "$metro_macro_score" != "0" ]; then
+                        local pct=$(printf "%.0f" "$(echo "scale=4; ($score / $metro_macro_score) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                        local mult=$(printf "%.1f" "$(echo "scale=4; $score / $metro_macro_score" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                        if [ -n "$pct" ] && [ -n "$mult" ]; then
+                            vs_metro="+${pct}% (${mult}x)"
+                        fi
+                    fi
                 fi
-                echo "| $mode | $display |" >> "$summary_file"
+                echo "| $mode | $display | $vs_metro |" >> "$summary_file"
             done
 
             echo "" >> "$summary_file"
         fi
+
+        # Get metro score for "vs Metro" column
+        local metro_micro_score=$(extract_android_micro_score_for_ref "$ref_label" "metro")
 
         cat >> "$summary_file" << EOF
 ## Android Benchmarks (Microbenchmark)
 
 Graph creation and initialization time on Android (lower is better):
 
-| Framework | Time (ms) |
-|-----------|-----------|
+| Framework | Time (ms) | vs Metro |
+|-----------|-----------|----------|
 EOF
 
         for mode in "${MODE_ARRAY[@]}"; do
             local score=$(extract_android_micro_score_for_ref "$ref_label" "$mode")
             local display="${score:-N/A}"
+            local vs_metro="—"
+
             if [ -n "$score" ]; then
                 display=$(printf "%.3f" "$score")
+                if [ "$mode" = "metro" ]; then
+                    vs_metro="baseline"
+                elif [ -n "$metro_micro_score" ] && [ "$metro_micro_score" != "0" ]; then
+                    local pct=$(printf "%.0f" "$(echo "scale=4; ($score / $metro_micro_score) * 100" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    local mult=$(printf "%.1f" "$(echo "scale=4; $score / $metro_micro_score" | bc 2>/dev/null)" 2>/dev/null || echo "")
+                    if [ -n "$pct" ] && [ -n "$mult" ]; then
+                        vs_metro="+${pct}% (${mult}x)"
+                    fi
+                fi
             fi
-            echo "| $mode | $display |" >> "$summary_file"
+            echo "| $mode | $display | $vs_metro |" >> "$summary_file"
         done
 
         echo "" >> "$summary_file"
