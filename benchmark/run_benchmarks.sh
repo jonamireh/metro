@@ -730,15 +730,15 @@ EOF
                 fi
 
                 if [ -n "$score1" ] && [ -n "$score2" ] && [ "$score1" != "0" ]; then
-                    local pct=$(echo "scale=1; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null || echo "")
+                    local pct=$(echo "scale=2; (($score2 - $score1) / $score1) * 100" | bc 2>/dev/null || echo "")
                     if [ -n "$pct" ]; then
                         # Check if negative (faster)
                         if [[ "$pct" == -* ]]; then
-                            diff="${pct}% (faster)"
-                        elif [[ "$pct" == "0" ]] || [[ "$pct" == "0.0" ]] || [[ "$pct" == ".0" ]]; then
-                            diff="no change"
+                            diff="${pct}%"
+                        elif [[ "$pct" == "0" ]] || [[ "$pct" == "0.00" ]] || [[ "$pct" == ".00" ]]; then
+                            diff="+0.00% (no change)"
                         else
-                            diff="+${pct}% (slower)"
+                            diff="+${pct}%"
                         fi
                     fi
                 fi
