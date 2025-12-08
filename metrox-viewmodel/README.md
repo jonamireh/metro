@@ -40,7 +40,9 @@ It also provides a `metroViewModelFactory` property for creating ViewModels.
 
 ### MetroViewModelFactory
 
-A `ViewModelProvider.Factory` implementation that uses injected maps to create ViewModels. Subclass it to provide your own bindings:
+`MetroViewModelFactory` is a `ViewModelProvider.Factory` implementation that uses injected maps to create ViewModels.
+
+`ViewModelGraph` requires you to provide a `MetroViewModelFactory` subclass with your bindings:
 
 ```kotlin
 @Inject
@@ -65,6 +67,9 @@ class HomeViewModel : ViewModel() {
   // ...
 }
 ```
+
+!!! warning "Migrating from `@HiltViewModel`"
+    If you are migrating from `@HiltViewModel` be aware that by default `@ContributesIntoMap` will bind your ViewModel to the immediate parent type. If you have an intermediate parent type such as `class MyViewModel : BaseViewModel()` you will want to specify the binding type with `@ContributesIntoMap(AppScope::class, binding<ViewModel>())`.
 
 ### Assisted ViewModel Creation
 
