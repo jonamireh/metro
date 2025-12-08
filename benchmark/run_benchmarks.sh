@@ -14,7 +14,8 @@ DEFAULT_MODULE_COUNT=500
 RESULTS_DIR="benchmark-results"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
-# Git comparison refs
+# Git refs
+SINGLE_REF=""
 COMPARE_REF1=""
 COMPARE_REF2=""
 COMPARE_BENCHMARK_TYPE="all"
@@ -435,6 +436,7 @@ show_usage() {
     echo "  anvil-ksp [COUNT]            Run only Anvil + KSP mode benchmarks"
     echo "  anvil-kapt [COUNT]           Run only Anvil + KAPT mode benchmarks"
     echo "  kotlin-inject-anvil [COUNT]  Run only Kotlin-inject + Anvil mode benchmarks"
+    echo "  single                        Run benchmarks on a single git ref"
     echo "  compare                       Compare benchmarks across two git refs"
     echo "  help                         Show this help message"
     echo ""
@@ -442,6 +444,12 @@ show_usage() {
     echo "  COUNT                        Number of modules to generate (default: $DEFAULT_MODULE_COUNT)"
     echo "  --build-only                 Only run ./gradlew :app:component:run --quiet, skip gradle-profiler"
     echo "  --include-clean-builds       Include clean build scenarios in benchmarks"
+    echo ""
+    echo "Single Options:"
+    echo "  --ref <ref>                  Git ref to benchmark - branch name or commit hash"
+    echo "  --modes <list>               Comma-separated list of modes to benchmark"
+    echo "                               Available: metro, anvil-ksp, anvil-kapt, kotlin-inject-anvil"
+    echo "                               Default: metro,anvil-ksp,kotlin-inject-anvil"
     echo ""
     echo "Compare Options:"
     echo "  --ref1 <ref>                 First git ref (baseline) - branch name or commit hash"
@@ -466,6 +474,10 @@ show_usage() {
     echo "  $0 all --build-only          # Generate and build all projects, skip benchmarks"
     echo "  $0 all --include-clean-builds # Run all benchmarks including clean build scenarios"
     echo "  $0 metro 250 --include-clean-builds # Run Metro benchmarks with 250 modules including clean builds"
+    echo ""
+    echo "  # Run benchmarks on a single git ref:"
+    echo "  $0 single --ref main"
+    echo "  $0 single --ref feature-branch --modes metro,anvil-ksp"
     echo ""
     echo "  # Compare benchmarks across git refs:"
     echo "  $0 compare --ref1 main --ref2 feature-branch"
@@ -768,6 +780,137 @@ EOF
     cat "$summary_file"
 }
 
+# Generate summary for single ref benchmarks
+generate_single_summary() {
+    local ref_label="$1"
+    local modes="$2"
+
+    local summary_file="$RESULTS_DIR/${TIMESTAMP}/single-summary.md"
+    local ref_commit=$(cat "$RESULTS_DIR/${TIMESTAMP}/${ref_label}/commit-info.txt" 2>/dev/null || echo "unknown")
+
+    print_header "Generating Single Ref Summary"
+
+    cat > "$summary_file" << EOF
+# Benchmark Results: $ref_label
+
+**Date:** $(date)
+**Module Count:** $DEFAULT_MODULE_COUNT
+**Modes:** $modes
+**Commit:** $ref_commit
+
+EOF
+
+    # Test types to show
+    local test_types=("abi_change" "non_abi_change" "plain_abi_change" "plain_non_abi_change" "raw_compilation")
+    local test_names=("ABI Change" "Non-ABI Change" "Plain Kotlin ABI" "Plain Kotlin Non-ABI" "Graph Processing")
+
+    IFS=',' read -ra MODE_ARRAY <<< "$modes"
+
+    for i in "${!test_types[@]}"; do
+        local test_type="${test_types[$i]}"
+        local test_name="${test_names[$i]}"
+
+        cat >> "$summary_file" << EOF
+## $test_name
+
+| Framework | Time |
+|-----------|------|
+EOF
+
+        for mode in "${MODE_ARRAY[@]}"; do
+            local mode_prefix
+            case "$mode" in
+                "metro") mode_prefix="metro" ;;
+                "anvil-ksp") mode_prefix="anvil_ksp" ;;
+                "anvil-kapt") mode_prefix="anvil_kapt" ;;
+                "kotlin-inject-anvil") mode_prefix="kotlin_inject_anvil" ;;
+                *) continue ;;
+            esac
+
+            local score=$(extract_median_for_ref "$ref_label" "$mode_prefix" "$test_type")
+
+            local display="N/A"
+            if [ -n "$score" ]; then
+                local secs=$(echo "scale=1; $score / 1000" | bc 2>/dev/null || echo "")
+                if [ -n "$secs" ]; then
+                    display="${secs}s"
+                fi
+            fi
+
+            echo "| $mode | $display |" >> "$summary_file"
+        done
+
+        echo "" >> "$summary_file"
+    done
+
+    cat >> "$summary_file" << EOF
+## Raw Results
+
+Results are stored in: \`$RESULTS_DIR/${TIMESTAMP}/\`
+
+- \`${ref_label}/\` - Results ($ref_commit)
+EOF
+
+    print_success "Summary saved to $summary_file"
+    echo ""
+    cat "$summary_file"
+}
+
+# Run single ref command
+run_single() {
+    local count="${1:-$DEFAULT_MODULE_COUNT}"
+    local include_clean_builds="${2:-false}"
+
+    if [ -z "$SINGLE_REF" ]; then
+        print_error "Single requires --ref argument"
+        show_usage
+        exit 1
+    fi
+
+    # Validate ref exists
+    if ! git rev-parse --verify "$SINGLE_REF" > /dev/null 2>&1; then
+        print_error "Invalid git ref: $SINGLE_REF"
+        exit 1
+    fi
+
+    # Check for uncommitted changes
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        print_error "You have uncommitted changes. Please commit or stash them before running benchmarks."
+        exit 1
+    fi
+
+    print_header "Running Benchmarks on Single Git Ref"
+    print_status "Ref: $SINGLE_REF"
+    print_status "Modes: $COMPARE_MODES"
+    print_status "Module count: $count"
+    echo ""
+
+    # Save current git state
+    save_git_state
+
+    # Create safe label for directory name
+    local ref_label=$(get_ref_safe_name "$SINGLE_REF")
+
+    # Create results directory
+    mkdir -p "$RESULTS_DIR/${TIMESTAMP}"
+
+    # Set up trap to restore git state on exit
+    trap 'restore_git_state' EXIT
+
+    # Run benchmarks for the ref (all modes, not second ref)
+    run_benchmarks_for_ref "$SINGLE_REF" "$ref_label" "$count" "$include_clean_builds" "$COMPARE_MODES" false || {
+        print_error "Failed to run benchmarks for $SINGLE_REF"
+        exit 1
+    }
+
+    # Generate summary
+    generate_single_summary "$ref_label" "$COMPARE_MODES"
+
+    print_header "Benchmarks Complete"
+    echo "Results saved to: $RESULTS_DIR/${TIMESTAMP}/"
+    echo ""
+}
+
 # Run compare command
 run_compare() {
     local count="${1:-$DEFAULT_MODULE_COUNT}"
@@ -874,6 +1017,10 @@ main() {
                 install_profiler=true
                 shift
                 ;;
+            --ref)
+                SINGLE_REF="$2"
+                shift 2
+                ;;
             --ref1)
                 COMPARE_REF1="$2"
                 shift 2
@@ -953,6 +1100,9 @@ main() {
             ;;
         kotlin-inject-anvil)
             run_mode_benchmark "kotlin-inject-anvil" "" "$count" "$build_only" "$include_clean_builds"
+            ;;
+        single)
+            run_single "$count" "$include_clean_builds"
             ;;
         compare)
             run_compare "$count" "$include_clean_builds"
