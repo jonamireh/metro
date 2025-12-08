@@ -7,7 +7,7 @@ on:
         description: 'Baseline git ref (branch name or commit SHA)'
         required: false
         type: string
-        default: '${{ github.ref_name }}'
+        default: 'main'
       ref2:
         description: 'Comparison git ref (branch name or commit SHA). Leave empty for single-ref benchmark.'
         required: false
