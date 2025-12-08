@@ -46,12 +46,6 @@ interface AppGraph {
     private val thisGraphInstance: AppGraph
       field = <this>
 
-    private val thisGraphInstanceProvider: Provider<AppGraph>
-      field = Companion.invoke<AppGraph>(value = <this>.#thisGraphInstance)
-
-    private val intHolderProvider: Provider<IntHolder>
-      field = MetroFactory.create()
-
     private constructor() /* primary */ {
       super/*Any*/()
       /* <init>() */
@@ -60,12 +54,12 @@ interface AppGraph {
 
     override val long: Long
       override get(): Long {
-        return Companion.create(instance = <this>.#thisGraphInstance, holder = <this>.#intHolderProvider).invoke()
+        return Companion.provideLong(instance = <this>.#thisGraphInstance, holder = IntHolder())
       }
 
     override val string: String
       override get(): String {
-        return Companion.create(instance = <this>.#thisGraphInstance, holder = <this>.#intHolderProvider).invoke()
+        return Companion.provideString(instance = <this>.#thisGraphInstance, holder = IntHolder())
       }
 
   }
@@ -85,7 +79,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideLong", propertyName = "", startOffset = 108, endOffset = 180)
+  @CallableMetadata(callableName = "provideLong", propertyName = "", startOffset = 108, endOffset = 180, newInstanceName = "provideLong")
   class ProvideLongMetroFactory : Factory<Long> {
     private /* final field */ val instance: AppGraph = instance
     private /* final field */ val holder: Provider<IntHolder> = holder
@@ -123,7 +117,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideString", propertyName = "", startOffset = 183, endOffset = 261)
+  @CallableMetadata(callableName = "provideString", propertyName = "", startOffset = 183, endOffset = 261, newInstanceName = "provideString")
   class ProvideStringMetroFactory : Factory<String> {
     private /* final field */ val instance: AppGraph = instance
     private /* final field */ val holder: Provider<IntHolder> = holder

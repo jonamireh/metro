@@ -21,12 +21,6 @@ interface AppGraph {
     private val thisGraphInstance: AppGraph
       field = <this>
 
-    private val thisGraphInstanceProvider: Provider<AppGraph>
-      field = Companion.invoke<AppGraph>(value = <this>.#thisGraphInstance)
-
-    private val provideIntProvider: Provider<Int>
-      field = Companion.create(instance = <this>.#thisGraphInstance)
-
     private constructor() /* primary */ {
       super/*Any*/()
       /* <init>() */
@@ -38,16 +32,6 @@ interface AppGraph {
     override fun Int.bindInt(): Int {
       return error(message = "Never called")
     }
-
-    private val bindDoubleProvider: Provider<Double>
-      private get(): Provider<Double> {
-        return Companion.create(instance = <this>.#thisGraphInstance, int = <this>.#provideIntProvider)
-      }
-
-    private val bindLongProvider: Provider<Long>
-      private get(): Provider<Long> {
-        return Companion.create(instance = <this>.#thisGraphInstance, int = <this>.#provideIntProvider)
-      }
 
     override val doubleSet: Set<Double>
       override get(): Set<Double> {
@@ -66,17 +50,17 @@ interface AppGraph {
 
     private val setOfDouble: Set<Double>
       private get(): Set<Double> {
-        return setOf<Double>(element = <this>.<get-bindDoubleProvider>().invoke())
+        return setOf<Double>(element = Companion.bindDouble(instance = <this>.#thisGraphInstance, int = Companion.provideInt(instance = <this>.#thisGraphInstance)))
       }
 
     private val setOfInt: Set<Int>
       private get(): Set<Int> {
-        return setOf<Int>(element = <this>.#provideIntProvider.invoke())
+        return setOf<Int>(element = Companion.provideInt(instance = <this>.#thisGraphInstance))
       }
 
     private val setOfLong: Set<Long>
       private get(): Set<Long> {
-        return setOf<Long>(element = <this>.<get-bindLongProvider>().invoke())
+        return setOf<Long>(element = Companion.bindLong(instance = <this>.#thisGraphInstance, int = Companion.provideInt(instance = <this>.#thisGraphInstance)))
       }
 
   }
@@ -96,7 +80,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "bindDouble", propertyName = "", startOffset = 239, endOffset = 307)
+  @CallableMetadata(callableName = "bindDouble", propertyName = "", startOffset = 239, endOffset = 307, newInstanceName = "bindDouble")
   class BindDoubleMetroFactory : Factory<Double> {
     private /* final field */ val instance: AppGraph = instance
     private /* final field */ val int: Provider<Int> = int
@@ -135,7 +119,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "bindLong", propertyName = "", startOffset = 174, endOffset = 236)
+  @CallableMetadata(callableName = "bindLong", propertyName = "", startOffset = 174, endOffset = 236, newInstanceName = "bindLong")
   class BindLongMetroFactory : Factory<Long> {
     private /* final field */ val instance: AppGraph = instance
     private /* final field */ val int: Provider<Int> = int
@@ -174,7 +158,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 95, endOffset = 130)
+  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 95, endOffset = 130, newInstanceName = "provideInt")
   class ProvideIntMetroFactory : Factory<Int> {
     private /* final field */ val instance: AppGraph = instance
     companion object Companion {

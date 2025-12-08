@@ -153,6 +153,7 @@ interface TestGraph {
       fun initialize() {
         <this>.#service1Provider = Companion.provider<Provider<Service1>, Service1>(delegate = MetroFactory.create())
         <this>.#provideService1Provider = Companion.provider<Provider<Any>, Any>(delegate = Companion.create(s1 = <this>.#service1Provider))
+        <this>.#service2Provider = Companion.provider<Provider<Service2>, Service2>(delegate = MetroFactory.create())
       }
 
     }
@@ -165,20 +166,7 @@ interface TestGraph {
       }
 
       fun initialize() {
-        <this>.#service2Provider = Companion.provider<Provider<Service2>, Service2>(delegate = MetroFactory.create())
         <this>.#provideService2Provider = Companion.provider<Provider<Any>, Any>(delegate = Companion.create(s2 = <this>.#service2Provider))
-      }
-
-    }
-
-    private inner class Shard3 {
-      constructor() /* primary */ {
-        super/*Any*/()
-        /* <init>() */
-
-      }
-
-      fun initialize() {
         <this>.#collectorProvider = Companion.provider<Provider<Collector>, Collector>(delegate = Companion.create(services = <this>.<get-setOfAny>()))
       }
 
@@ -190,7 +178,6 @@ interface TestGraph {
 
       <this>.Shard1().initialize()
       <this>.Shard2().initialize()
-      <this>.Shard3().initialize()
     }
 
     override val collector: Collector
@@ -228,7 +215,7 @@ interface TestGraph {
 @ContributesTo(scope = AppScope::class)
 object Module1 {
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideService1", propertyName = "", startOffset = 710, endOffset = 805)
+  @CallableMetadata(callableName = "provideService1", propertyName = "", startOffset = 710, endOffset = 805, newInstanceName = "provideService1")
   class ProvideService1MetroFactory : Factory<Any> {
     private /* final field */ val s1: Provider<Service1> = s1
     companion object Companion {
@@ -285,7 +272,7 @@ object Module1 {
 @ContributesTo(scope = AppScope::class)
 object Module2 {
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideService2", propertyName = "", startOffset = 878, endOffset = 973)
+  @CallableMetadata(callableName = "provideService2", propertyName = "", startOffset = 878, endOffset = 973, newInstanceName = "provideService2")
   class ProvideService2MetroFactory : Factory<Any> {
     private /* final field */ val s2: Provider<Service2> = s2
     companion object Companion {

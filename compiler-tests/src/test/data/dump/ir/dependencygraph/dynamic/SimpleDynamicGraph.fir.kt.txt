@@ -5,8 +5,11 @@ class Example {
 
   @DependencyGraph
   private class DynamicAppGraphImpl_6fU3C9Y : AppGraph {
+    private val container0Instance: TestIntProvider
+      field = container0
+
     private val container0InstanceProvider: Provider<TestIntProvider>
-      field = Companion.invoke<TestIntProvider>(value = container0)
+      field = Companion.invoke<TestIntProvider>(value = <this>.#container0Instance)
 
     constructor(container0: TestIntProvider) /* primary */ {
       super/*Any*/()
@@ -16,7 +19,7 @@ class Example {
 
     override val int: Int
       override get(): Int {
-        return Companion.create(instance = <this>.#container0InstanceProvider.invoke()).invoke()
+        return Companion.provideInt(instance = <this>.#container0Instance)
       }
 
   }
@@ -41,7 +44,7 @@ class TestIntProvider {
     private get
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 471, endOffset = 510)
+  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 471, endOffset = 510, newInstanceName = "provideInt")
   class ProvideIntMetroFactory : Factory<Int> {
     private /* final field */ val instance: TestIntProvider = instance
     companion object Companion {
@@ -98,9 +101,6 @@ interface AppGraph {
     private val thisGraphInstance: AppGraph
       field = <this>
 
-    private val thisGraphInstanceProvider: Provider<AppGraph>
-      field = Companion.invoke<AppGraph>(value = <this>.#thisGraphInstance)
-
     private constructor() /* primary */ {
       super/*Any*/()
       /* <init>() */
@@ -109,7 +109,7 @@ interface AppGraph {
 
     override val int: Int
       override get(): Int {
-        return Companion.create(instance = <this>.#thisGraphInstance).invoke()
+        return Companion.provideInt(instance = <this>.#thisGraphInstance)
       }
 
   }
@@ -129,7 +129,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 85, endOffset = 152)
+  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 85, endOffset = 152, newInstanceName = "provideInt")
   class ProvideIntMetroFactory : Factory<Int> {
     private /* final field */ val instance: AppGraph = instance
     companion object Companion {

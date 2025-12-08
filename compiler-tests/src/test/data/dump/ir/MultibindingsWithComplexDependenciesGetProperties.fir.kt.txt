@@ -6,9 +6,6 @@ interface AppGraph {
     private val thisGraphInstance: AppGraph
       field = <this>
 
-    private val thisGraphInstanceProvider: Provider<AppGraph>
-      field = Companion.invoke<AppGraph>(value = <this>.#thisGraphInstance)
-
     private constructor() /* primary */ {
       super/*Any*/()
       /* <init>() */
@@ -20,14 +17,9 @@ interface AppGraph {
         return <this>.<get-setOfInt>()
       }
 
-    private val provideIntProvider: Provider<Int>
-      private get(): Provider<Int> {
-        return Companion.create(instance = <this>.#thisGraphInstance, string = Companion.create(instance = <this>.#thisGraphInstance))
-      }
-
     private val setOfInt: Set<Int>
       private get(): Set<Int> {
-        return setOf<Int>(element = <this>.<get-provideIntProvider>().invoke())
+        return setOf<Int>(element = Companion.provideInt(instance = <this>.#thisGraphInstance, string = Companion.provideString(instance = <this>.#thisGraphInstance)))
       }
 
   }
@@ -47,7 +39,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 137, endOffset = 208)
+  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 137, endOffset = 208, newInstanceName = "provideInt")
   class ProvideIntMetroFactory : Factory<Int> {
     private /* final field */ val instance: AppGraph = instance
     private /* final field */ val string: Provider<String> = string
@@ -86,7 +78,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideString", propertyName = "", startOffset = 91, endOffset = 134)
+  @CallableMetadata(callableName = "provideString", propertyName = "", startOffset = 91, endOffset = 134, newInstanceName = "provideString")
   class ProvideStringMetroFactory : Factory<String> {
     private /* final field */ val instance: AppGraph = instance
     companion object Companion {

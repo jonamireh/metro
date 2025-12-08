@@ -20,9 +20,6 @@ interface AppGraph {
     private val thisGraphInstance: AppGraph
       field = <this>
 
-    private val thisGraphInstanceProvider: Provider<AppGraph>
-      field = Companion.invoke<AppGraph>(value = <this>.#thisGraphInstance)
-
     private constructor() /* primary */ {
       super/*Any*/()
       /* <init>() */
@@ -43,7 +40,7 @@ interface AppGraph {
     private val mapOfIntToInt: Map<Int, Int>
       private get(): Map<Int, Int> {
         return buildMap<Int, Int>(capacity = 1, builderAction = local fun MutableMap<Int, Int>.<anonymous>() {
-          $receiver.put(key = 3, value = Companion.create(instance = <this>.#thisGraphInstance).invoke())
+          $receiver.put(key = 3, value = Companion.provideInt(instance = <this>.#thisGraphInstance))
         }
 )
       }
@@ -73,7 +70,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 160, endOffset = 215)
+  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 160, endOffset = 215, newInstanceName = "provideInt")
   class ProvideIntMetroFactory : Factory<Int> {
     private /* final field */ val instance: AppGraph = instance
     companion object Companion {

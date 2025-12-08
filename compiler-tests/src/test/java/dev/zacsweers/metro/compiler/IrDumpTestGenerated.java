@@ -148,6 +148,12 @@ public class IrDumpTestGenerated extends AbstractIrDumpTest {
     }
 
     @Test
+    @TestMetadata("MapBuildersUseInlineInstantiation.kt")
+    public void testMapBuildersUseInlineInstantiation() {
+      runTest("compiler-tests/src/test/data/dump/ir/dependencygraph/MapBuildersUseInlineInstantiation.kt");
+    }
+
+    @Test
     @TestMetadata("MapsUseMapBuilderIfNoProvider.kt")
     public void testMapsUseMapBuilderIfNoProvider() {
       runTest("compiler-tests/src/test/data/dump/ir/dependencygraph/MapsUseMapBuilderIfNoProvider.kt");
@@ -163,6 +169,12 @@ public class IrDumpTestGenerated extends AbstractIrDumpTest {
     @TestMetadata("OptionalBindingsHaveValidFieldNames.kt")
     public void testOptionalBindingsHaveValidFieldNames() {
       runTest("compiler-tests/src/test/data/dump/ir/dependencygraph/OptionalBindingsHaveValidFieldNames.kt");
+    }
+
+    @Test
+    @TestMetadata("ProviderAccessorsAreTrackedInRefCounting.kt")
+    public void testProviderAccessorsAreTrackedInRefCounting() {
+      runTest("compiler-tests/src/test/data/dump/ir/dependencygraph/ProviderAccessorsAreTrackedInRefCounting.kt");
     }
 
     @Test
@@ -318,6 +330,12 @@ public class IrDumpTestGenerated extends AbstractIrDumpTest {
     public void testConstructorFunctionSignatures() {
       runTest("compiler-tests/src/test/data/dump/ir/injectconstructor/ConstructorFunctionSignatures.kt");
     }
+
+    @Test
+    @TestMetadata("DefaultValuesPropagateToNewInstanceParams.kt")
+    public void testDefaultValuesPropagateToNewInstanceParams() {
+      runTest("compiler-tests/src/test/data/dump/ir/injectconstructor/DefaultValuesPropagateToNewInstanceParams.kt");
+    }
   }
 
   @Nested
@@ -330,9 +348,77 @@ public class IrDumpTestGenerated extends AbstractIrDumpTest {
     }
 
     @Test
+    @TestMetadata("MapProvidersParticipateInProviderRefcounting.kt")
+    public void testMapProvidersParticipateInProviderRefcounting() {
+      runTest("compiler-tests/src/test/data/dump/ir/multibindings/MapProvidersParticipateInProviderRefcounting.kt");
+    }
+
+    @Test
     @TestMetadata("MultibindingSourcesGetGettersThroughAliases.kt")
     public void testMultibindingSourcesGetGettersThroughAliases() {
       runTest("compiler-tests/src/test/data/dump/ir/multibindings/MultibindingSourcesGetGettersThroughAliases.kt");
+    }
+  }
+
+  @Nested
+  @TestMetadata("compiler-tests/src/test/data/dump/ir/provides")
+  @TestDataPath("$PROJECT_ROOT")
+  public class Provides {
+    @Test
+    public void testAllFilesPresentInProvides() {
+      KtTestUtil.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler-tests/src/test/data/dump/ir/provides"), Pattern.compile("^(.+)\\.kt$"), null, TargetBackend.JVM_IR, true);
+    }
+
+    @Test
+    @TestMetadata("DefaultValuesPropagateToNewInstanceParams.kt")
+    public void testDefaultValuesPropagateToNewInstanceParams() {
+      runTest("compiler-tests/src/test/data/dump/ir/provides/DefaultValuesPropagateToNewInstanceParams.kt");
+    }
+
+    @Test
+    @TestMetadata("JvmFieldProvidersUseFieldAccess.kt")
+    public void testJvmFieldProvidersUseFieldAccess() {
+      runTest("compiler-tests/src/test/data/dump/ir/provides/JvmFieldProvidersUseFieldAccess.kt");
+    }
+  }
+
+  @Nested
+  @TestMetadata("compiler-tests/src/test/data/dump/ir/visibility")
+  @TestDataPath("$PROJECT_ROOT")
+  public class Visibility {
+    @Test
+    public void testAllFilesPresentInVisibility() {
+      KtTestUtil.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler-tests/src/test/data/dump/ir/visibility"), Pattern.compile("^(.+)\\.kt$"), null, TargetBackend.JVM_IR, true);
+    }
+
+    @Test
+    @TestMetadata("DaggerProviderVisibility.kt")
+    public void testDaggerProviderVisibility() {
+      runTest("compiler-tests/src/test/data/dump/ir/visibility/DaggerProviderVisibility.kt");
+    }
+
+    @Test
+    @TestMetadata("DaggerProviderVisibilityDifferentModule.kt")
+    public void testDaggerProviderVisibilityDifferentModule() {
+      runTest("compiler-tests/src/test/data/dump/ir/visibility/DaggerProviderVisibilityDifferentModule.kt");
+    }
+
+    @Test
+    @TestMetadata("InternalVisibility.kt")
+    public void testInternalVisibility() {
+      runTest("compiler-tests/src/test/data/dump/ir/visibility/InternalVisibility.kt");
+    }
+
+    @Test
+    @TestMetadata("InternalVisibilityDifferentModule.kt")
+    public void testInternalVisibilityDifferentModule() {
+      runTest("compiler-tests/src/test/data/dump/ir/visibility/InternalVisibilityDifferentModule.kt");
+    }
+
+    @Test
+    @TestMetadata("ProtectedVisibility.kt")
+    public void testProtectedVisibility() {
+      runTest("compiler-tests/src/test/data/dump/ir/visibility/ProtectedVisibility.kt");
     }
   }
 }

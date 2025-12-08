@@ -6,9 +6,6 @@ interface AppGraph {
     private val thisGraphInstance: AppGraph
       field = <this>
 
-    private val thisGraphInstanceProvider: Provider<AppGraph>
-      field = Companion.invoke<AppGraph>(value = <this>.#thisGraphInstance)
-
     private val provideStringProvider: Provider<String>
       field = Companion.provider<Provider<String>, String>(delegate = Companion.create(instance = <this>.#thisGraphInstance))
 
@@ -21,7 +18,7 @@ interface AppGraph {
     override val intProvider: Provider<Optional<Int>>
       override get(): Provider<Optional<Int>> {
         return provider<Optional<Int>>(provider = local fun <anonymous>(): Optional<Int> {
-          return of<Int>(p0 = Companion.create(instance = <this>.#thisGraphInstance).invoke())
+          return of<Int>(p0 = Companion.provideInt(instance = <this>.#thisGraphInstance))
         }
 )
       }
@@ -56,7 +53,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 608, endOffset = 643)
+  @CallableMetadata(callableName = "provideInt", propertyName = "", startOffset = 608, endOffset = 643, newInstanceName = "provideInt")
   class ProvideIntMetroFactory : Factory<Int> {
     private /* final field */ val instance: AppGraph = instance
     companion object Companion {
@@ -93,7 +90,7 @@ interface AppGraph {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideString", propertyName = "", startOffset = 531, endOffset = 605)
+  @CallableMetadata(callableName = "provideString", propertyName = "", startOffset = 531, endOffset = 605, newInstanceName = "provideString")
   class ProvideStringMetroFactory : Factory<String> {
     private /* final field */ val instance: AppGraph = instance
     companion object Companion {

@@ -992,6 +992,12 @@ public class BoxTestGenerated extends AbstractBoxTest {
     }
 
     @Test
+    @TestMetadata("DefaultValuesPropagateToNewInstanceParams.kt")
+    public void testDefaultValuesPropagateToNewInstanceParams() {
+      runTest("compiler-tests/src/test/data/box/inject/DefaultValuesPropagateToNewInstanceParams.kt");
+    }
+
+    @Test
     @TestMetadata("InjectedConstructorParametersWithGenericsWork.kt")
     public void testInjectedConstructorParametersWithGenericsWork() {
       runTest("compiler-tests/src/test/data/box/inject/InjectedConstructorParametersWithGenericsWork.kt");
@@ -1337,6 +1343,12 @@ public class BoxTestGenerated extends AbstractBoxTest {
       }
 
       @Test
+      @TestMetadata("DaggerModulesWithPropertyProviders.kt")
+      public void testDaggerModulesWithPropertyProviders() {
+        runTest("compiler-tests/src/test/data/box/interop/dagger/DaggerModulesWithPropertyProviders.kt");
+      }
+
+      @Test
       @TestMetadata("DaggerMultibindsAllowEmptyByDefault.kt")
       public void testDaggerMultibindsAllowEmptyByDefault() {
         runTest("compiler-tests/src/test/data/box/interop/dagger/DaggerMultibindsAllowEmptyByDefault.kt");
@@ -1676,9 +1688,21 @@ public class BoxTestGenerated extends AbstractBoxTest {
     }
 
     @Test
+    @TestMetadata("DefaultValuesPropagateToNewInstanceParams.kt")
+    public void testDefaultValuesPropagateToNewInstanceParams() {
+      runTest("compiler-tests/src/test/data/box/provides/DefaultValuesPropagateToNewInstanceParams.kt");
+    }
+
+    @Test
     @TestMetadata("ExplicitlyPrivateProviderAnnotationsArePropagated.kt")
     public void testExplicitlyPrivateProviderAnnotationsArePropagated() {
       runTest("compiler-tests/src/test/data/box/provides/ExplicitlyPrivateProviderAnnotationsArePropagated.kt");
+    }
+
+    @Test
+    @TestMetadata("JvmFieldProvidersAreRespected.kt")
+    public void testJvmFieldProvidersAreRespected() {
+      runTest("compiler-tests/src/test/data/box/provides/JvmFieldProvidersAreRespected.kt");
     }
 
     @Test

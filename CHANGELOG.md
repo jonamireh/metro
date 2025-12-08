@@ -4,7 +4,19 @@ Changelog
 **Unreleased**
 --------------
 
+This release significantly improves the runtime performance of Metro-generated graphs, bringing them to parity with Dagger components' typical runtime performance (without fastInit enabled).
+
+- 🚀 Improves graph init runtime performance by **30–40%**
+- 🤏 Reduces generated graph code size by **60–70%** (even higher if you heavily use multibindings)
 - **New**: Experimental support for sharding large graphs. For extremely large dependency graphs on the JVM, their generated implementations could exceed the JVM class size limit. To avoid this, Metro now supports sharding within graphs (as needed) to distribute initialization code across multiple inner _shard_ classes. This is currently disabled by default but can be enabled via the `enableGraphSharding` Gradle DSL property.
+- **New**: Support `@Provides` properties with `@JvmField` annotations.
+- **Enhancement**: Avoid unnecessary intermediate `Provider` instance allocations during graph expression gen. This means that when a direct type is requested in code gen, Metro will skip instantiating the intermediate `MetroFactory` instance if possible, avoiding unnecessary allocations.
+- **Enhancement**: Don't always generate accessors for multibinding contributors. This is no longer necessary now that we also avoid provider instance allocations, and should significantly reduce generated method counts if using a lot of multibindings.
+- **Enhancement**: Include graph roots in `Provider` refcounting. Previously, when detecting if `Provider` instance were used multiple times, Metro only checked for usages from other bindings.
+- **Enhancement**: For multibindings that would use `Provider` elements/values, mark their sources as provider-accessed in refcounting.
+- **Enhancement**: Don't generate provider fields for graph self instances unless necessary.
+- **Enhancement**: Improve accuracy of diagnostic location when reporting graph validation issues from binding callable declarations.
+- **Fix**: Fix `newInstance()` args not stripping `Lazy` in top-level function inject classes.
 
 0.8.2
 -----

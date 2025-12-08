@@ -11,8 +11,11 @@ interface AppGraph : Factory {
 
     @DependencyGraph
     private inner class LoggedInGraphImpl : LoggedInGraph {
+      private val idInstance: String
+        field = id
+
       private val idInstanceProvider: Provider<String>
-        field = Companion.invoke<String>(value = id)
+        field = Companion.invoke<String>(value = <this>.#idInstance)
 
       constructor(@Provides id: String) /* primary */ {
         super/*Any*/()
@@ -22,7 +25,7 @@ interface AppGraph : Factory {
 
       override val count: Int
         override get(): Int {
-          return Companion.create(instance = <this>).invoke()
+          return Companion.provideCount(instance = <this>)
         }
 
       override val id: String
@@ -59,7 +62,7 @@ interface AppGraph : Factory {
   }
 
   @Deprecated(message = "This synthesized declaration should not be used directly", level = DeprecationLevel.HIDDEN)
-  @CallableMetadata(callableName = "provideCount", propertyName = "", startOffset = 290, endOffset = 327)
+  @CallableMetadata(callableName = "provideCount", propertyName = "", startOffset = 290, endOffset = 327, newInstanceName = "provideCount")
   class ProvideCountMetroFactory : Factory<Int> {
     private /* final field */ val instance: AppGraph = instance
     companion object Companion {
