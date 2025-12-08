@@ -720,7 +720,7 @@ class ${className}LocalServiceImpl$i @Inject constructor(${if (availableDependen
 interface ${className}Subcomponent {
   ${if (availableDependencies.isNotEmpty()) "// Access parent scope bindings\n$parentAccessors\n  \n" else ""}// Access subcomponent scope bindings
 $subcomponentAccessors
-  
+
   @ContributesTo(AppScope::class)
   @GraphExtension.Factory
   interface Factory {
@@ -754,7 +754,7 @@ class ${className}LocalServiceImpl$i @Inject constructor(${if (availableDependen
 interface ${className}Subcomponent {
   ${if (availableDependencies.isNotEmpty()) "// Access parent scope bindings\n$parentAccessors\n  \n" else ""}// Access subcomponent scope bindings
 $subcomponentAccessors
-  
+
   @ContributesSubcomponent.Factory(AppScope::class)
   interface Factory {
     fun create${className}Subcomponent(): ${className}Subcomponent
@@ -791,7 +791,7 @@ class ${className}LocalServiceImpl$i @Inject constructor(${if (availableDependen
 interface ${className}Subcomponent {
   ${if (availableDependencies.isNotEmpty()) "// Access parent scope bindings\n$parentAccessors\n  \n" else ""}// Access subcomponent scope bindings
 $subcomponentAccessors
-  
+
   @ContributesTo(Unit::class)
   interface Factory {
     fun create${className}Subcomponent(): ${className}Subcomponent
@@ -885,12 +885,12 @@ package dev.zacsweers.metro.benchmark.core.foundation
  */
 class PlainDataProcessor {
   private var counter = 0
-  
+
   fun processData(input: String): String {
     counter++
     return "Processed: ${'$'}input (#${'$'}counter)"
   }
-  
+
   fun getProcessedCount(): Int {
     return counter
   }
