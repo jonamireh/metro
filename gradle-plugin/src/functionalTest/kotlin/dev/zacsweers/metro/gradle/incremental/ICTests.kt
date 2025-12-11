@@ -326,6 +326,89 @@ class ICTests : BaseIncrementalCompilationTest() {
   }
 
   @Test
+  fun contributedProviderExternalChangeInGraphExtensionDetected() {
+    val fixture =
+      object : MetroProject() {
+        override fun sources() = throw IllegalStateException()
+
+        override val gradleProject: GradleProject
+          get() =
+            newGradleProjectBuilder(DslKind.KOTLIN)
+              .withRootProject {
+                withBuildScript {
+                  sources = listOf(appGraph)
+                  applyMetroDefault()
+                  dependencies(Dependency.implementation(":lib"))
+                }
+
+                withMetroSettings()
+              }
+              .withSubproject("lib") {
+                sources.add(dependency)
+                sources.add(dependencyProvider)
+                withBuildScript { applyMetroDefault() }
+              }
+              .write()
+
+        private val appGraph =
+          source(
+            """
+            @DependencyGraph
+            interface AppGraph {
+              val stringGraph: StringGraph
+            }
+
+            @GraphExtension(String::class)
+            interface StringGraph
+            """
+              .trimIndent()
+          )
+
+        private val dependency =
+          source(
+            """
+            interface Dependency
+            """
+              .trimIndent()
+          )
+
+        val dependencyProviderSource =
+          """
+          @ContributesTo(String::class)
+          interface DependencyProvider {
+            val dependency: Dependency
+          }
+          """
+            .trimIndent()
+        val dependencyProvider = source(dependencyProviderSource)
+      }
+
+    val project = fixture.gradleProject
+    val libProject = project.subprojects.first { it.name == "lib" }
+    val failureMessage =
+      """
+      [Metro/MissingBinding] Cannot find an @Inject constructor or @Provides-annotated function/property for: test.Dependency
+      """
+        .trimIndent()
+
+    val firstBuildResult = buildAndFail(project.rootDir, "compileKotlin")
+    println(firstBuildResult.output)
+    assertThat(firstBuildResult.output).contains(failureMessage)
+
+    // Remove dependencyProvider to fix the build
+    libProject.modify(project.rootDir, fixture.dependencyProvider, "")
+
+    val secondBuildResult = build(project.rootDir, "compileKotlin")
+    assertThat(secondBuildResult.task(":compileKotlin")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+
+    // Restore dependencyProvider to break the build
+    libProject.modify(project.rootDir, fixture.dependencyProvider, fixture.dependencyProviderSource)
+
+    val thirdBuildResult = buildAndFail(project.rootDir, "compileKotlin")
+    assertThat(thirdBuildResult.output).contains(failureMessage)
+  }
+
+  @Test
   fun supertypeProviderCompanionChangesDetected() {
     val fixture =
       object : MetroProject() {
