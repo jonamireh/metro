@@ -35,6 +35,8 @@ ORIGINAL_GIT_IS_BRANCH=false
 RERUN_NON_METRO=false
 # Whether to include macrobenchmarks (disabled by default as startup time is low-signal for DI perf)
 INCLUDE_MACROBENCHMARK=false
+# Whether to only collect binary metrics without running benchmarks (for testing)
+BINARY_METRICS_ONLY=false
 
 print_header() {
     echo ""
@@ -167,6 +169,8 @@ show_usage() {
     echo "  --timestamp <ts>        Use specific timestamp for results directory"
     echo "  --include-macrobenchmark  Include Android macrobenchmarks (startup time)"
     echo "                          Disabled by default as startup time is low-signal for DI perf"
+    echo "  --binary-metrics-only   Only collect binary metrics (skip JMH/benchmark runs)"
+    echo "                          Useful for testing binary metrics collection quickly"
     echo ""
     echo "Single Options:"
     echo "  --ref <ref>         Git ref to benchmark - branch name or commit hash"
@@ -238,6 +242,189 @@ get_gradle_args() {
     esac
 }
 
+# Extract class metrics from compiled AppComponent classes using javap
+# Outputs JSON: { fields: N, methods: N, shards: N, total_size_bytes: N, classes: [...] }
+extract_class_metrics() {
+    local class_dir="$1"
+    local output_file="$2"
+    local package_path="dev/zacsweers/metro/benchmark/app/component"
+
+    local full_path="$class_dir/$package_path"
+
+    if [ ! -d "$full_path" ]; then
+        print_error "Class directory not found: $full_path"
+        echo '{"fields":0,"methods":0,"shards":0,"total_size_bytes":0,"classes":[]}' > "$output_file"
+        return 1
+    fi
+
+    # Find all AppComponent*.class files
+    local class_files=()
+    local shard_count=0
+    local total_size=0
+    local total_fields=0
+    local total_methods=0
+    local class_names=()
+
+    while IFS= read -r -d '' class_file; do
+        class_files+=("$class_file")
+        local filename=$(basename "$class_file")
+        class_names+=("$filename")
+
+        # Get file size
+        local file_size=$(stat -f%z "$class_file" 2>/dev/null || stat -c%s "$class_file" 2>/dev/null || echo "0")
+        total_size=$((total_size + file_size))
+
+        # Count shard classes (both Metro and Dagger generate these)
+        if [[ "$filename" == *"Shard"* ]]; then
+            shard_count=$((shard_count + 1))
+        fi
+
+        # Use javap to extract fields and methods count
+        local javap_output
+        javap_output=$(javap -verbose "$class_file" 2>/dev/null | head -20 || echo "")
+
+        # Extract from line like: "interfaces: 5, fields: 11, methods: 171, attributes: 5"
+        local fields=$(echo "$javap_output" | grep -o 'fields: [0-9]*' | grep -o '[0-9]*' || echo "0")
+        local methods=$(echo "$javap_output" | grep -o 'methods: [0-9]*' | grep -o '[0-9]*' || echo "0")
+
+        if [ -n "$fields" ]; then
+            total_fields=$((total_fields + fields))
+        fi
+        if [ -n "$methods" ]; then
+            total_methods=$((total_methods + methods))
+        fi
+    done < <(find "$full_path" -maxdepth 1 -name "AppComponent*.class" -print0 2>/dev/null)
+
+    # Build JSON array of class names
+    local classes_json="["
+    local first=true
+    for name in "${class_names[@]}"; do
+        if [ "$first" = true ]; then
+            first=false
+        else
+            classes_json+=","
+        fi
+        classes_json+="\"$name\""
+    done
+    classes_json+="]"
+
+    # Output JSON
+    cat > "$output_file" << EOF
+{
+  "fields": $total_fields,
+  "methods": $total_methods,
+  "shards": $shard_count,
+  "total_size_bytes": $total_size,
+  "classes": $classes_json
+}
+EOF
+
+    print_success "Class metrics extracted: fields=$total_fields, methods=$total_methods, shards=$shard_count, size=${total_size}B"
+}
+
+# Extract JAR metrics (size, optionally class/method counts)
+extract_jar_metrics() {
+    local jar_file="$1"
+    local output_file="$2"
+
+    if [ ! -f "$jar_file" ]; then
+        print_error "JAR file not found: $jar_file"
+        echo '{"size_bytes":0,"class_count":0}' > "$output_file"
+        return 1
+    fi
+
+    # Get file size
+    local file_size=$(stat -f%z "$jar_file" 2>/dev/null || stat -c%s "$jar_file" 2>/dev/null || echo "0")
+
+    # Count classes in JAR
+    local class_count=$(unzip -l "$jar_file" 2>/dev/null | grep '\.class$' | wc -l | tr -d ' ')
+
+    # Output JSON
+    cat > "$output_file" << EOF
+{
+  "size_bytes": $file_size,
+  "class_count": $class_count
+}
+EOF
+
+    local size_kb=$(echo "scale=1; $file_size / 1024" | bc)
+    print_success "JAR metrics extracted: size=${size_kb}KB, classes=$class_count"
+}
+
+# Extract APK metrics
+extract_apk_metrics() {
+    local apk_file="$1"
+    local output_file="$2"
+
+    if [ ! -f "$apk_file" ]; then
+        print_error "APK file not found: $apk_file"
+        echo '{"size_bytes":0}' > "$output_file"
+        return 1
+    fi
+
+    # Get file size
+    local file_size=$(stat -f%z "$apk_file" 2>/dev/null || stat -c%s "$apk_file" 2>/dev/null || echo "0")
+
+    # Output JSON
+    cat > "$output_file" << EOF
+{
+  "size_bytes": $file_size
+}
+EOF
+
+    local size_kb=$(echo "scale=1; $file_size / 1024" | bc)
+    print_success "APK metrics extracted: size=${size_kb}KB"
+}
+
+# Run diffuse comparison between two APKs or JARs
+# Saves full output and extracts summary tables
+run_diffuse_diff() {
+    local file1="$1"
+    local file2="$2"
+    local output_dir="$3"
+    local file_type="${4:-apk}"  # apk or jar
+
+    mkdir -p "$output_dir"
+
+    # Source the diffuse installation script to get the binary path
+    source "$SCRIPT_DIR/install-diffuse.sh"
+    local diffuse_bin=$(get_diffuse_bin)
+
+    if [ ! -x "$diffuse_bin" ]; then
+        print_error "diffuse not installed. Run ./install-diffuse.sh first"
+        return 1
+    fi
+
+    if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
+        print_error "One or both files not found: $file1, $file2"
+        return 1
+    fi
+
+    local type_flag=""
+    if [ "$file_type" = "jar" ]; then
+        type_flag="--jar"
+    fi
+
+    print_step "Running diffuse diff..."
+
+    # Run diffuse and capture full output
+    local full_output="$output_dir/diffuse-full-output.txt"
+    if "$diffuse_bin" diff $type_flag "$file1" "$file2" > "$full_output" 2>&1; then
+        print_success "diffuse diff complete"
+
+        # Extract summary tables (APK/JAR and DEX sections)
+        local summary_output="$output_dir/diffuse-summary.txt"
+        # Extract from start until first "=====" separator after DEX section
+        awk '/^(APK|JAR|DEX)$/,/^=+$/' "$full_output" | head -100 > "$summary_output"
+
+        return 0
+    else
+        print_error "diffuse diff failed"
+        cat "$full_output"
+        return 1
+    fi
+}
+
 # Setup project for a specific mode (clean and generate)
 setup_for_mode() {
     local mode="$1"
@@ -254,20 +441,40 @@ run_jvm_benchmark_only() {
     local output_dir="$RESULTS_DIR/${TIMESTAMP}/jvm_${mode}"
     mkdir -p "$output_dir"
 
-    print_step "Running JMH benchmark for $mode..."
-
     local gradle_args=$(get_gradle_args "$mode")
 
-    # Run JMH and capture output
-    if ./gradlew --quiet $gradle_args :startup-jvm:jmh 2>&1 | tee "$output_dir/jmh-output.txt"; then
-        # Copy JMH results
-        if [ -d "startup-jvm/build/results/jmh" ]; then
-            cp -r startup-jvm/build/results/jmh/* "$output_dir/" 2>/dev/null || true
+    if [ "$BINARY_METRICS_ONLY" = true ]; then
+        # Binary metrics only mode - just build classes, skip JMH
+        print_step "Building classes for $mode (binary metrics only)..."
+        if ./gradlew --quiet $gradle_args :app:component:classes 2>&1 | tee "$output_dir/build-output.txt"; then
+            # Extract class metrics from compiled AppComponent classes
+            print_step "Extracting class metrics for $mode..."
+            extract_class_metrics "app/component/build/classes/kotlin/main" "$output_dir/class-metrics.json"
+            print_success "Binary metrics extraction complete for $mode"
+        else
+            print_error "Build failed for $mode"
+            return 1
         fi
-        print_success "JMH benchmark complete for $mode"
     else
-        print_error "JMH benchmark failed for $mode"
-        return 1
+        # Full benchmark mode - run JMH
+        print_step "Running JMH benchmark for $mode..."
+
+        # Run JMH and capture output
+        if ./gradlew --quiet $gradle_args :startup-jvm:jmh 2>&1 | tee "$output_dir/jmh-output.txt"; then
+            # Copy JMH results
+            if [ -d "startup-jvm/build/results/jmh" ]; then
+                cp -r startup-jvm/build/results/jmh/* "$output_dir/" 2>/dev/null || true
+            fi
+
+            # Extract class metrics from compiled AppComponent classes
+            print_step "Extracting class metrics for $mode..."
+            extract_class_metrics "app/component/build/classes/kotlin/main" "$output_dir/class-metrics.json"
+
+            print_success "JMH benchmark complete for $mode"
+        else
+            print_error "JMH benchmark failed for $mode"
+            return 1
+        fi
     fi
 }
 
@@ -284,18 +491,38 @@ run_jvm_r8_benchmark_only() {
     local output_dir="$RESULTS_DIR/${TIMESTAMP}/jvm-r8_${mode}"
     mkdir -p "$output_dir"
 
-    print_step "Running JMH R8 benchmark for $mode (minified)..."
-
-    # Run JMH with R8-minified classes and capture output
-    if ./gradlew --quiet :startup-jvm-minified:jmh 2>&1 | tee "$output_dir/jmh-output.txt"; then
-        # Copy JMH results
-        if [ -d "startup-jvm-minified/build/results/jmh" ]; then
-            cp -r startup-jvm-minified/build/results/jmh/* "$output_dir/" 2>/dev/null || true
+    if [ "$BINARY_METRICS_ONLY" = true ]; then
+        # Binary metrics only mode - just build minified jar, skip JMH
+        print_step "Building minified JAR for $mode (binary metrics only)..."
+        if ./gradlew --quiet :startup-jvm:minified-jar:jar 2>&1 | tee "$output_dir/build-output.txt"; then
+            # Extract JAR metrics from minified jar
+            print_step "Extracting R8 JAR metrics for $mode..."
+            extract_jar_metrics "startup-jvm/minified-jar/build/libs/minified-jar.jar" "$output_dir/jar-metrics.json"
+            print_success "Binary metrics extraction complete for $mode"
+        else
+            print_error "Build failed for $mode"
+            return 1
         fi
-        print_success "JMH R8 benchmark complete for $mode"
     else
-        print_error "JMH R8 benchmark failed for $mode"
-        return 1
+        # Full benchmark mode - run JMH
+        print_step "Running JMH R8 benchmark for $mode (minified)..."
+
+        # Run JMH with R8-minified classes and capture output
+        if ./gradlew --quiet :startup-jvm-minified:jmh 2>&1 | tee "$output_dir/jmh-output.txt"; then
+            # Copy JMH results
+            if [ -d "startup-jvm-minified/build/results/jmh" ]; then
+                cp -r startup-jvm-minified/build/results/jmh/* "$output_dir/" 2>/dev/null || true
+            fi
+
+            # Extract JAR metrics from minified jar
+            print_step "Extracting R8 JAR metrics for $mode..."
+            extract_jar_metrics "startup-jvm/minified-jar/build/libs/minified-jar.jar" "$output_dir/jar-metrics.json"
+
+            print_success "JMH R8 benchmark complete for $mode"
+        else
+            print_error "JMH R8 benchmark failed for $mode"
+            return 1
+        fi
     fi
 }
 
@@ -314,46 +541,80 @@ run_android_benchmark_only() {
 
     local gradle_args=$(get_gradle_args "$mode")
 
-    # Build tasks - only include macrobenchmark if enabled
-    local build_tasks=":startup-android:app:assembleRelease :startup-android:microbenchmark:assembleBenchmark"
-    if [ "$INCLUDE_MACROBENCHMARK" = true ]; then
-        build_tasks="$build_tasks :startup-android:benchmark:assembleBenchmark"
-    fi
-
-    print_step "Building Android app for $mode..."
-    if ! ./gradlew --quiet $gradle_args $build_tasks 2>&1; then
-        print_error "Android build failed for $mode"
-        return 1
-    fi
-
-    # Run macrobenchmark only if enabled
-    if [ "$INCLUDE_MACROBENCHMARK" = true ]; then
-        print_step "Running Android macrobenchmark for $mode (requires connected device)..."
-        if ./gradlew --quiet :startup-android:benchmark:connectedBenchmarkAndroidTest 2>&1 | tee "$output_dir/macro-benchmark-output.txt"; then
-            # Copy macrobenchmark results
-            local macro_output="startup-android/benchmark/build/outputs/connected_android_test_additional_output"
-            if [ -d "$macro_output" ]; then
-                cp -r "$macro_output"/* "$output_dir/" 2>/dev/null || true
-            fi
-            print_success "Android macrobenchmark complete for $mode"
-        else
-            print_error "Android macrobenchmark failed for $mode (is a device connected?)"
+    if [ "$BINARY_METRICS_ONLY" = true ]; then
+        # Binary metrics only mode - just build APK, skip benchmarks
+        print_step "Building Android APK for $mode (binary metrics only)..."
+        if ! ./gradlew --quiet $gradle_args :startup-android:app:assembleRelease 2>&1 | tee "$output_dir/build-output.txt"; then
+            print_error "Android build failed for $mode"
             return 1
         fi
-    fi
 
-    print_step "Running Android microbenchmark for $mode..."
-    if ./gradlew --quiet :startup-android:microbenchmark:connectedBenchmarkAndroidTest 2>&1 | tee "$output_dir/micro-benchmark-output.txt"; then
-        # Copy microbenchmark results
-        local micro_output="startup-android/microbenchmark/build/outputs/connected_android_test_additional_output"
-        if [ -d "$micro_output" ]; then
-            mkdir -p "$output_dir/microbenchmark"
-            cp -r "$micro_output"/* "$output_dir/microbenchmark/" 2>/dev/null || true
+        # Extract APK metrics after build
+        local apk_file="startup-android/app/build/outputs/apk/release/app-release.apk"
+        if [ -f "$apk_file" ]; then
+            print_step "Extracting APK metrics for $mode..."
+            extract_apk_metrics "$apk_file" "$output_dir/apk-metrics.json"
+            # Save APK path for potential diffuse comparison later
+            echo "$apk_file" > "$output_dir/apk-path.txt"
+            print_success "Binary metrics extraction complete for $mode"
+        else
+            print_error "APK not found at expected path: $apk_file"
+            return 1
         fi
-        print_success "Android microbenchmark complete for $mode"
     else
-        print_error "Android microbenchmark failed for $mode"
-        return 1
+        # Full benchmark mode
+        # Build tasks - only include macrobenchmark if enabled
+        local build_tasks=":startup-android:app:assembleRelease :startup-android:microbenchmark:assembleBenchmark"
+        if [ "$INCLUDE_MACROBENCHMARK" = true ]; then
+            build_tasks="$build_tasks :startup-android:benchmark:assembleBenchmark"
+        fi
+
+        print_step "Building Android app for $mode..."
+        if ! ./gradlew --quiet $gradle_args $build_tasks 2>&1; then
+            print_error "Android build failed for $mode"
+            return 1
+        fi
+
+        # Extract APK metrics after build
+        local apk_file="startup-android/app/build/outputs/apk/release/app-release.apk"
+        if [ -f "$apk_file" ]; then
+            print_step "Extracting APK metrics for $mode..."
+            extract_apk_metrics "$apk_file" "$output_dir/apk-metrics.json"
+            # Save APK path for potential diffuse comparison later
+            echo "$apk_file" > "$output_dir/apk-path.txt"
+        else
+            print_error "APK not found at expected path: $apk_file"
+        fi
+
+        # Run macrobenchmark only if enabled
+        if [ "$INCLUDE_MACROBENCHMARK" = true ]; then
+            print_step "Running Android macrobenchmark for $mode (requires connected device)..."
+            if ./gradlew --quiet :startup-android:benchmark:connectedBenchmarkAndroidTest 2>&1 | tee "$output_dir/macro-benchmark-output.txt"; then
+                # Copy macrobenchmark results
+                local macro_output="startup-android/benchmark/build/outputs/connected_android_test_additional_output"
+                if [ -d "$macro_output" ]; then
+                    cp -r "$macro_output"/* "$output_dir/" 2>/dev/null || true
+                fi
+                print_success "Android macrobenchmark complete for $mode"
+            else
+                print_error "Android macrobenchmark failed for $mode (is a device connected?)"
+                return 1
+            fi
+        fi
+
+        print_step "Running Android microbenchmark for $mode..."
+        if ./gradlew --quiet :startup-android:microbenchmark:connectedBenchmarkAndroidTest 2>&1 | tee "$output_dir/micro-benchmark-output.txt"; then
+            # Copy microbenchmark results
+            local micro_output="startup-android/microbenchmark/build/outputs/connected_android_test_additional_output"
+            if [ -d "$micro_output" ]; then
+                mkdir -p "$output_dir/microbenchmark"
+                cp -r "$micro_output"/* "$output_dir/microbenchmark/" 2>/dev/null || true
+            fi
+            print_success "Android microbenchmark complete for $mode"
+        else
+            print_error "Android microbenchmark failed for $mode"
+            return 1
+        fi
     fi
 }
 
@@ -646,6 +907,9 @@ EOF
         echo "| $mode | $display_score | $comparison |" >> "$summary_file"
     done
 
+    # Add binary metrics section
+    generate_binary_metrics_summary "$summary_file"
+
     cat >> "$summary_file" << EOF
 
 ## Raw Results
@@ -653,6 +917,7 @@ EOF
 Results are stored in: \`$RESULTS_DIR/${TIMESTAMP}/\`
 
 - \`jvm_<mode>/\` - JMH benchmark results
+- \`jvm-r8_<mode>/\` - JMH R8-minified benchmark results
 - \`android_<mode>/\` - Android benchmark results
 EOF
 
@@ -662,6 +927,106 @@ EOF
 
     # Generate HTML report for non-ref benchmarks
     generate_non_ref_html_report "all"
+}
+
+# Generate binary metrics summary tables (for single-ref benchmarks)
+generate_binary_metrics_summary() {
+    local summary_file="$1"
+
+    IFS=',' read -ra MODE_ARRAY <<< "$MODES"
+
+    # Check if any class metrics exist
+    local has_class_metrics=false
+    for mode in "${MODE_ARRAY[@]}"; do
+        if [ -f "$RESULTS_DIR/${TIMESTAMP}/jvm_${mode}/class-metrics.json" ]; then
+            has_class_metrics=true
+            break
+        fi
+    done
+
+    if [ "$has_class_metrics" = true ]; then
+        cat >> "$summary_file" << EOF
+
+## Binary Metrics
+
+### Pre-Minification Component Classes
+
+| Framework | Fields | Methods | Shards | Size (KB) |
+|-----------|--------|---------|--------|-----------|
+EOF
+
+        for mode in "${MODE_ARRAY[@]}"; do
+            local metrics_file="$RESULTS_DIR/${TIMESTAMP}/jvm_${mode}/class-metrics.json"
+            if [ -f "$metrics_file" ]; then
+                local fields=$(jq -r '.fields' "$metrics_file" 2>/dev/null || echo "0")
+                local methods=$(jq -r '.methods' "$metrics_file" 2>/dev/null || echo "0")
+                local shards=$(jq -r '.shards' "$metrics_file" 2>/dev/null || echo "0")
+                local size_bytes=$(jq -r '.total_size_bytes' "$metrics_file" 2>/dev/null || echo "0")
+                local size_kb=$(echo "scale=1; $size_bytes / 1024" | bc 2>/dev/null || echo "0")
+
+                echo "| $mode | $fields | $methods | $shards | $size_kb |" >> "$summary_file"
+            fi
+        done
+    fi
+
+    # Check if any R8 JAR metrics exist
+    local has_jar_metrics=false
+    for mode in "${MODE_ARRAY[@]}"; do
+        if [ -f "$RESULTS_DIR/${TIMESTAMP}/jvm-r8_${mode}/jar-metrics.json" ]; then
+            has_jar_metrics=true
+            break
+        fi
+    done
+
+    if [ "$has_jar_metrics" = true ]; then
+        cat >> "$summary_file" << EOF
+
+### R8-Minified JAR
+
+| Framework | JAR Size (KB) | Classes |
+|-----------|---------------|---------|
+EOF
+
+        for mode in "${MODE_ARRAY[@]}"; do
+            local metrics_file="$RESULTS_DIR/${TIMESTAMP}/jvm-r8_${mode}/jar-metrics.json"
+            if [ -f "$metrics_file" ]; then
+                local size_bytes=$(jq -r '.size_bytes' "$metrics_file" 2>/dev/null || echo "0")
+                local class_count=$(jq -r '.class_count' "$metrics_file" 2>/dev/null || echo "0")
+                local size_kb=$(echo "scale=1; $size_bytes / 1024" | bc 2>/dev/null || echo "0")
+
+                echo "| $mode | $size_kb | $class_count |" >> "$summary_file"
+            fi
+        done
+    fi
+
+    # Check if any APK metrics exist
+    local has_apk_metrics=false
+    for mode in "${MODE_ARRAY[@]}"; do
+        if [ -f "$RESULTS_DIR/${TIMESTAMP}/android_${mode}/apk-metrics.json" ]; then
+            has_apk_metrics=true
+            break
+        fi
+    done
+
+    if [ "$has_apk_metrics" = true ]; then
+        cat >> "$summary_file" << EOF
+
+### Android APK
+
+| Framework | APK Size (KB) |
+|-----------|---------------|
+EOF
+
+        for mode in "${MODE_ARRAY[@]}"; do
+            local metrics_file="$RESULTS_DIR/${TIMESTAMP}/android_${mode}/apk-metrics.json"
+            if [ -f "$metrics_file" ]; then
+                local size_bytes=$(jq -r '.size_bytes' "$metrics_file" 2>/dev/null || echo "0")
+                local size_kb=$(echo "scale=1; $size_bytes / 1024" | bc 2>/dev/null || echo "0")
+
+                echo "| $mode | $size_kb |" >> "$summary_file"
+            fi
+        done
+    fi
 }
 
 # Generate HTML report for non-ref benchmarks (using jvm_<mode> directory structure)
@@ -1870,6 +2235,9 @@ EOF
         echo "" >> "$summary_file"
     fi
 
+    # Add binary metrics comparison section
+    generate_binary_metrics_comparison "$ref1_label" "$ref2_label" "$summary_file" "$benchmark_type"
+
     cat >> "$summary_file" << EOF
 ## Raw Results
 
@@ -1885,6 +2253,276 @@ EOF
 
     # Generate HTML report
     generate_html_report "$ref1_label" "$ref2_label" "$MODES" "$benchmark_type"
+}
+
+# Generate binary metrics comparison tables (for compare mode)
+generate_binary_metrics_comparison() {
+    local ref1_label="$1"
+    local ref2_label="$2"
+    local summary_file="$3"
+    local benchmark_type="$4"
+
+    IFS=',' read -ra MODE_ARRAY <<< "$MODES"
+
+    # Check if any class metrics exist for metro
+    local ref1_metro_class_metrics="$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/jvm_metro/class-metrics.json"
+    local ref2_metro_class_metrics="$RESULTS_DIR/${TIMESTAMP}/${ref2_label}/jvm_metro/class-metrics.json"
+
+    if [ -f "$ref1_metro_class_metrics" ] && [ -f "$ref2_metro_class_metrics" ]; then
+        cat >> "$summary_file" << EOF
+
+## Binary Metrics Comparison
+
+### Pre-Minification Component Classes (Metro)
+
+| Metric | $ref1_label | $ref2_label | Difference |
+|--------|-------------|-------------|------------|
+EOF
+
+        local ref1_fields=$(jq -r '.fields' "$ref1_metro_class_metrics" 2>/dev/null || echo "0")
+        local ref2_fields=$(jq -r '.fields' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local fields_diff=$((ref2_fields - ref1_fields))
+        local fields_sign=""
+        if [ "$fields_diff" -gt 0 ]; then fields_sign="+"; fi
+        echo "| Fields | $ref1_fields | $ref2_fields | ${fields_sign}${fields_diff} |" >> "$summary_file"
+
+        local ref1_methods=$(jq -r '.methods' "$ref1_metro_class_metrics" 2>/dev/null || echo "0")
+        local ref2_methods=$(jq -r '.methods' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local methods_diff=$((ref2_methods - ref1_methods))
+        local methods_sign=""
+        if [ "$methods_diff" -gt 0 ]; then methods_sign="+"; fi
+        echo "| Methods | $ref1_methods | $ref2_methods | ${methods_sign}${methods_diff} |" >> "$summary_file"
+
+        local ref1_shards=$(jq -r '.shards' "$ref1_metro_class_metrics" 2>/dev/null || echo "0")
+        local ref2_shards=$(jq -r '.shards' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local shards_diff=$((ref2_shards - ref1_shards))
+        local shards_sign=""
+        if [ "$shards_diff" -gt 0 ]; then shards_sign="+"; fi
+        echo "| Shards | $ref1_shards | $ref2_shards | ${shards_sign}${shards_diff} |" >> "$summary_file"
+
+        local ref1_size=$(jq -r '.total_size_bytes' "$ref1_metro_class_metrics" 2>/dev/null || echo "0")
+        local ref2_size=$(jq -r '.total_size_bytes' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local ref1_size_kb=$(echo "scale=1; $ref1_size / 1024" | bc 2>/dev/null || echo "0")
+        local ref2_size_kb=$(echo "scale=1; $ref2_size / 1024" | bc 2>/dev/null || echo "0")
+        local size_diff_bytes=$((ref2_size - ref1_size))
+        local size_diff_kb=$(echo "scale=1; $size_diff_bytes / 1024" | bc 2>/dev/null || echo "0")
+        local size_sign=""
+        if [ "$size_diff_bytes" -gt 0 ]; then size_sign="+"; fi
+        echo "| Size (KB) | $ref1_size_kb | $ref2_size_kb | ${size_sign}${size_diff_kb} |" >> "$summary_file"
+    fi
+
+    # Check if any R8 JAR metrics exist for metro
+    local ref1_metro_jar_metrics="$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/jvm-r8_metro/jar-metrics.json"
+    local ref2_metro_jar_metrics="$RESULTS_DIR/${TIMESTAMP}/${ref2_label}/jvm-r8_metro/jar-metrics.json"
+
+    if [ -f "$ref1_metro_jar_metrics" ] && [ -f "$ref2_metro_jar_metrics" ]; then
+        cat >> "$summary_file" << EOF
+
+### R8-Minified JAR (Metro)
+
+| Metric | $ref1_label | $ref2_label | Difference |
+|--------|-------------|-------------|------------|
+EOF
+
+        local ref1_jar_size=$(jq -r '.size_bytes' "$ref1_metro_jar_metrics" 2>/dev/null || echo "0")
+        local ref2_jar_size=$(jq -r '.size_bytes' "$ref2_metro_jar_metrics" 2>/dev/null || echo "0")
+        local ref1_jar_kb=$(echo "scale=1; $ref1_jar_size / 1024" | bc 2>/dev/null || echo "0")
+        local ref2_jar_kb=$(echo "scale=1; $ref2_jar_size / 1024" | bc 2>/dev/null || echo "0")
+        local jar_diff_bytes=$((ref2_jar_size - ref1_jar_size))
+        local jar_diff_kb=$(echo "scale=1; $jar_diff_bytes / 1024" | bc 2>/dev/null || echo "0")
+        local jar_sign=""
+        if [ "$jar_diff_bytes" -gt 0 ]; then jar_sign="+"; fi
+        echo "| JAR Size (KB) | $ref1_jar_kb | $ref2_jar_kb | ${jar_sign}${jar_diff_kb} |" >> "$summary_file"
+
+        local ref1_class_count=$(jq -r '.class_count' "$ref1_metro_jar_metrics" 2>/dev/null || echo "0")
+        local ref2_class_count=$(jq -r '.class_count' "$ref2_metro_jar_metrics" 2>/dev/null || echo "0")
+        local class_diff=$((ref2_class_count - ref1_class_count))
+        local class_sign=""
+        if [ "$class_diff" -gt 0 ]; then class_sign="+"; fi
+        echo "| Class Count | $ref1_class_count | $ref2_class_count | ${class_sign}${class_diff} |" >> "$summary_file"
+    fi
+
+    # Check if APK metrics exist and run diffuse comparison
+    local ref1_metro_apk_path="$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/android_metro/apk-path.txt"
+    local ref2_metro_apk_path="$RESULTS_DIR/${TIMESTAMP}/${ref2_label}/android_metro/apk-path.txt"
+
+    if [ -f "$ref1_metro_apk_path" ] && [ -f "$ref2_metro_apk_path" ]; then
+        local apk1=$(cat "$ref1_metro_apk_path")
+        local apk2=$(cat "$ref2_metro_apk_path")
+
+        # Try to copy APKs to results directory for later analysis
+        local diffuse_dir="$RESULTS_DIR/${TIMESTAMP}/diffuse"
+        mkdir -p "$diffuse_dir"
+
+        # Run diffuse if available
+        source "$SCRIPT_DIR/install-diffuse.sh" 2>/dev/null || true
+        local diffuse_bin=$(get_diffuse_bin 2>/dev/null || echo "")
+
+        if [ -x "$diffuse_bin" ] && [ -f "$apk1" ] && [ -f "$apk2" ]; then
+            print_step "Running diffuse APK comparison..."
+            if run_diffuse_diff "$apk1" "$apk2" "$diffuse_dir" "apk"; then
+                cat >> "$summary_file" << EOF
+
+### Android APK (Diffuse)
+
+\`\`\`
+EOF
+                # Include just the APK and DEX summary tables
+                if [ -f "$diffuse_dir/diffuse-summary.txt" ]; then
+                    cat "$diffuse_dir/diffuse-summary.txt" >> "$summary_file"
+                else
+                    head -60 "$diffuse_dir/diffuse-full-output.txt" >> "$summary_file" 2>/dev/null || echo "Diffuse output not available" >> "$summary_file"
+                fi
+                cat >> "$summary_file" << EOF
+\`\`\`
+
+See \`diffuse/diffuse-full-output.txt\` for complete analysis.
+EOF
+            fi
+        elif [ -f "$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/android_metro/apk-metrics.json" ] && [ -f "$RESULTS_DIR/${TIMESTAMP}/${ref2_label}/android_metro/apk-metrics.json" ]; then
+            # Fallback to simple size comparison if diffuse not available
+            local ref1_apk_metrics="$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/android_metro/apk-metrics.json"
+            local ref2_apk_metrics="$RESULTS_DIR/${TIMESTAMP}/${ref2_label}/android_metro/apk-metrics.json"
+
+            cat >> "$summary_file" << EOF
+
+### Android APK (Metro)
+
+| Metric | $ref1_label | $ref2_label | Difference |
+|--------|-------------|-------------|------------|
+EOF
+
+            local ref1_apk_size=$(jq -r '.size_bytes' "$ref1_apk_metrics" 2>/dev/null || echo "0")
+            local ref2_apk_size=$(jq -r '.size_bytes' "$ref2_apk_metrics" 2>/dev/null || echo "0")
+            local ref1_apk_kb=$(echo "scale=1; $ref1_apk_size / 1024" | bc 2>/dev/null || echo "0")
+            local ref2_apk_kb=$(echo "scale=1; $ref2_apk_size / 1024" | bc 2>/dev/null || echo "0")
+            local apk_diff_bytes=$((ref2_apk_size - ref1_apk_size))
+            local apk_diff_kb=$(echo "scale=1; $apk_diff_bytes / 1024" | bc 2>/dev/null || echo "0")
+            local apk_sign=""
+            if [ "$apk_diff_bytes" -gt 0 ]; then apk_sign="+"; fi
+            echo "| APK Size (KB) | $ref1_apk_kb | $ref2_apk_kb | ${apk_sign}${apk_diff_kb} |" >> "$summary_file"
+        fi
+    fi
+
+    # Now add comparison of Metro (ref2) vs other frameworks (ref1)
+    # This shows how Metro compares to competitors after the change
+    local has_other_class_metrics=false
+    for mode in "${MODE_ARRAY[@]}"; do
+        if [ "$mode" != "metro" ] && [ -f "$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/jvm_${mode}/class-metrics.json" ]; then
+            has_other_class_metrics=true
+            break
+        fi
+    done
+
+    if [ "$has_other_class_metrics" = true ] && [ -f "$ref2_metro_class_metrics" ]; then
+        cat >> "$summary_file" << EOF
+
+### Framework Comparison (Metro $ref2_label vs Others $ref1_label)
+
+Pre-minification component classes:
+
+| Framework | Fields | Methods | Shards | Size (KB) |
+|-----------|--------|---------|--------|-----------|
+EOF
+
+        # First add Metro ref2
+        local metro_fields=$(jq -r '.fields' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local metro_methods=$(jq -r '.methods' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local metro_shards=$(jq -r '.shards' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local metro_size=$(jq -r '.total_size_bytes' "$ref2_metro_class_metrics" 2>/dev/null || echo "0")
+        local metro_size_kb=$(echo "scale=1; $metro_size / 1024" | bc 2>/dev/null || echo "0")
+        echo "| **metro** ($ref2_label) | $metro_fields | $metro_methods | $metro_shards | $metro_size_kb |" >> "$summary_file"
+
+        # Then add other frameworks from ref1
+        for mode in "${MODE_ARRAY[@]}"; do
+            if [ "$mode" != "metro" ]; then
+                local metrics_file="$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/jvm_${mode}/class-metrics.json"
+                if [ -f "$metrics_file" ]; then
+                    local fields=$(jq -r '.fields' "$metrics_file" 2>/dev/null || echo "0")
+                    local methods=$(jq -r '.methods' "$metrics_file" 2>/dev/null || echo "0")
+                    local shards=$(jq -r '.shards' "$metrics_file" 2>/dev/null || echo "0")
+                    local size_bytes=$(jq -r '.total_size_bytes' "$metrics_file" 2>/dev/null || echo "0")
+                    local size_kb=$(echo "scale=1; $size_bytes / 1024" | bc 2>/dev/null || echo "0")
+                    echo "| $mode ($ref1_label) | $fields | $methods | $shards | $size_kb |" >> "$summary_file"
+                fi
+            fi
+        done
+    fi
+
+    # R8 JAR framework comparison
+    local has_other_jar_metrics=false
+    for mode in "${MODE_ARRAY[@]}"; do
+        if [ "$mode" != "metro" ] && [ -f "$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/jvm-r8_${mode}/jar-metrics.json" ]; then
+            has_other_jar_metrics=true
+            break
+        fi
+    done
+
+    if [ "$has_other_jar_metrics" = true ] && [ -f "$ref2_metro_jar_metrics" ]; then
+        cat >> "$summary_file" << EOF
+
+R8-minified JAR:
+
+| Framework | JAR Size (KB) | Classes |
+|-----------|---------------|---------|
+EOF
+
+        # First add Metro ref2
+        local metro_jar_size=$(jq -r '.size_bytes' "$ref2_metro_jar_metrics" 2>/dev/null || echo "0")
+        local metro_class_count=$(jq -r '.class_count' "$ref2_metro_jar_metrics" 2>/dev/null || echo "0")
+        local metro_jar_kb=$(echo "scale=1; $metro_jar_size / 1024" | bc 2>/dev/null || echo "0")
+        echo "| **metro** ($ref2_label) | $metro_jar_kb | $metro_class_count |" >> "$summary_file"
+
+        # Then add other frameworks from ref1
+        for mode in "${MODE_ARRAY[@]}"; do
+            if [ "$mode" != "metro" ]; then
+                local metrics_file="$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/jvm-r8_${mode}/jar-metrics.json"
+                if [ -f "$metrics_file" ]; then
+                    local size_bytes=$(jq -r '.size_bytes' "$metrics_file" 2>/dev/null || echo "0")
+                    local class_count=$(jq -r '.class_count' "$metrics_file" 2>/dev/null || echo "0")
+                    local size_kb=$(echo "scale=1; $size_bytes / 1024" | bc 2>/dev/null || echo "0")
+                    echo "| $mode ($ref1_label) | $size_kb | $class_count |" >> "$summary_file"
+                fi
+            fi
+        done
+    fi
+
+    # APK framework comparison
+    local has_other_apk_metrics=false
+    for mode in "${MODE_ARRAY[@]}"; do
+        if [ "$mode" != "metro" ] && [ -f "$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/android_${mode}/apk-metrics.json" ]; then
+            has_other_apk_metrics=true
+            break
+        fi
+    done
+
+    local ref2_metro_apk_metrics="$RESULTS_DIR/${TIMESTAMP}/${ref2_label}/android_metro/apk-metrics.json"
+    if [ "$has_other_apk_metrics" = true ] && [ -f "$ref2_metro_apk_metrics" ]; then
+        cat >> "$summary_file" << EOF
+
+Android APK:
+
+| Framework | APK Size (KB) |
+|-----------|---------------|
+EOF
+
+        # First add Metro ref2
+        local metro_apk_size=$(jq -r '.size_bytes' "$ref2_metro_apk_metrics" 2>/dev/null || echo "0")
+        local metro_apk_kb=$(echo "scale=1; $metro_apk_size / 1024" | bc 2>/dev/null || echo "0")
+        echo "| **metro** ($ref2_label) | $metro_apk_kb |" >> "$summary_file"
+
+        # Then add other frameworks from ref1
+        for mode in "${MODE_ARRAY[@]}"; do
+            if [ "$mode" != "metro" ]; then
+                local metrics_file="$RESULTS_DIR/${TIMESTAMP}/${ref1_label}/android_${mode}/apk-metrics.json"
+                if [ -f "$metrics_file" ]; then
+                    local size_bytes=$(jq -r '.size_bytes' "$metrics_file" 2>/dev/null || echo "0")
+                    local size_kb=$(echo "scale=1; $size_bytes / 1024" | bc 2>/dev/null || echo "0")
+                    echo "| $mode ($ref1_label) | $size_kb |" >> "$summary_file"
+                fi
+            fi
+        done
+    fi
 }
 
 # Generate summary for single ref benchmarks
@@ -2902,6 +3540,10 @@ main() {
                 ;;
             --include-macrobenchmark)
                 INCLUDE_MACROBENCHMARK=true
+                shift
+                ;;
+            --binary-metrics-only)
+                BINARY_METRICS_ONLY=true
                 shift
                 ;;
             *)
