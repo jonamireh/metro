@@ -14,4 +14,4 @@
 
 # Optimization settings
 -allowaccessmodification
--repackageclasses ''
+-dontobfuscate
