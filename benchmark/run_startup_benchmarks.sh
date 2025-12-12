@@ -545,12 +545,23 @@ run_jvm_benchmark_only() {
     local gradle_args=$(get_gradle_args "$mode")
 
     if [ "$BINARY_METRICS_ONLY" = true ]; then
-        # Binary metrics only mode - just build classes, skip JMH
-        print_step "Building classes for $mode (binary metrics only)..."
-        if ./gradlew --quiet $gradle_args :app:component:classes 2>&1 | tee "$output_dir/build-output.txt"; then
+        # Binary metrics only mode - build classes and JAR, skip JMH
+        print_step "Building classes and JAR for $mode (binary metrics only)..."
+        if ./gradlew --quiet $gradle_args :app:component:classes :app:component:jar 2>&1 | tee "$output_dir/build-output.txt"; then
             # Extract class metrics from compiled AppComponent classes
             print_step "Extracting class metrics for $mode..."
             extract_class_metrics "app/component/build/classes/kotlin/main" "$output_dir/class-metrics.json"
+
+            # Extract JAR metrics from non-minified jar (for diffuse comparison)
+            local component_jar="app/component/build/libs/component.jar"
+            if [ -f "$component_jar" ]; then
+                print_step "Extracting non-minified JAR metrics for $mode..."
+                mkdir -p "$output_dir/diffuse"
+                extract_jar_metrics "$component_jar" "$output_dir/jar-unminified-metrics.json" "$output_dir/diffuse/diffuse-jar-unminified-${mode}.txt"
+                # Copy JAR file to results directory for later diffuse comparison
+                cp "$component_jar" "$output_dir/component-unminified.jar" 2>/dev/null || true
+            fi
+
             print_success "Binary metrics extraction complete for $mode"
         else
             print_error "Build failed for $mode"
@@ -651,25 +662,38 @@ run_android_benchmark_only() {
     local gradle_args=$(get_gradle_args "$mode")
 
     if [ "$BINARY_METRICS_ONLY" = true ]; then
-        # Binary metrics only mode - just build APK, skip benchmarks
-        print_step "Building Android APK for $mode (binary metrics only)..."
-        if ! ./gradlew --quiet $gradle_args :startup-android:app:assembleRelease 2>&1 | tee "$output_dir/build-output.txt"; then
+        # Binary metrics only mode - build both minified (release) and non-minified (debug) APKs, skip benchmarks
+        print_step "Building Android APKs for $mode (binary metrics only)..."
+        if ! ./gradlew --quiet $gradle_args :startup-android:app:assembleRelease :startup-android:app:assembleDebug 2>&1 | tee "$output_dir/build-output.txt"; then
             print_error "Android build failed for $mode"
             return 1
         fi
 
-        # Extract APK metrics after build
+        # Extract minified APK metrics (release)
         local apk_file="startup-android/app/build/outputs/apk/release/app-release.apk"
         if [ -f "$apk_file" ]; then
-            print_step "Extracting APK metrics for $mode..."
+            print_step "Extracting minified APK metrics for $mode..."
             mkdir -p "$output_dir/diffuse"
             extract_apk_metrics "$apk_file" "$output_dir/apk-metrics.json" "$output_dir/diffuse/diffuse-apk-${mode}.txt"
             # Copy APK file to results directory for later diffuse comparison
             cp "$apk_file" "$output_dir/app-release.apk" 2>/dev/null || true
-            print_success "Binary metrics extraction complete for $mode"
+            print_success "Minified APK metrics extraction complete for $mode"
         else
-            print_error "APK not found at expected path: $apk_file"
+            print_error "Minified APK not found at expected path: $apk_file"
             return 1
+        fi
+
+        # Extract non-minified APK metrics (debug)
+        local apk_debug="startup-android/app/build/outputs/apk/debug/app-debug.apk"
+        if [ -f "$apk_debug" ]; then
+            print_step "Extracting non-minified (debug) APK metrics for $mode..."
+            extract_apk_metrics "$apk_debug" "$output_dir/apk-debug-metrics.json" "$output_dir/diffuse/diffuse-apk-debug-${mode}.txt"
+            # Copy APK file to results directory for later diffuse comparison
+            cp "$apk_debug" "$output_dir/app-debug.apk" 2>/dev/null || true
+            print_success "Non-minified APK metrics extraction complete for $mode"
+        else
+            print_error "Debug APK not found at expected path: $apk_debug"
+            # Don't fail - this is optional
         fi
     else
         # Full benchmark mode
@@ -3788,10 +3812,44 @@ function formatCountWithDelta(newVal, oldVal) {
     if (oldVal === null || oldVal === undefined) return formatted;
     const diff = newVal - oldVal;
     if (diff === 0) return formatted;
-    const pct = oldVal ? ((diff / oldVal) * 100).toFixed(1) : 0;
+    // Handle division by zero: if oldVal is 0, just show the raw difference
+    const pct = oldVal !== 0 ? ((diff / oldVal) * 100).toFixed(1) : null;
     const sign = diff > 0 ? '+' : '';
     const cls = diff < 0 ? 'better' : (diff > 0 ? 'worse' : '');
-    return `${formatted}<br><span class="${cls}">(${sign}${pct}%)</span>`;
+    if (pct !== null) {
+        return `${formatted}<br><span class="${cls}">(${sign}${pct}%)</span>`;
+    }
+    return `${formatted}<br><span class="${cls}">(${sign}${diff})</span>`;
+}
+
+// Format a delta comparison (for cross-framework tables)
+function formatDelta(newVal, oldVal) {
+    if (newVal === null || newVal === undefined || oldVal === null || oldVal === undefined) return '—';
+    const diff = newVal - oldVal;
+    if (diff === 0) return '0';
+    const sign = diff > 0 ? '+' : '';
+    // Handle division by zero: if oldVal is 0, just show the raw difference
+    const pct = oldVal !== 0 ? ((diff / oldVal) * 100).toFixed(1) : null;
+    const cls = diff < 0 ? 'better' : 'worse';
+    if (pct !== null) {
+        return `<span class="${cls}">${sign}${diff.toLocaleString()} (${sign}${pct}%)</span>`;
+    }
+    return `<span class="${cls}">${sign}${diff.toLocaleString()}</span>`;
+}
+
+function formatBytesDelta(newVal, oldVal) {
+    if (newVal === null || newVal === undefined || oldVal === null || oldVal === undefined) return '—';
+    const diff = newVal - oldVal;
+    if (diff === 0) return '0';
+    const sign = diff > 0 ? '+' : '';
+    // Handle division by zero: if oldVal is 0, just show the raw difference
+    const pct = oldVal !== 0 ? ((diff / oldVal) * 100).toFixed(1) : null;
+    const cls = diff < 0 ? 'better' : 'worse';
+    const diffFormatted = formatBytes(Math.abs(diff));
+    if (pct !== null) {
+        return `<span class="${cls}">${sign}${diffFormatted} (${sign}${pct}%)</span>`;
+    }
+    return `<span class="${cls}">${sign}${diffFormatted}</span>`;
 }
 
 function formatVsBaseline(value, baselineValue) {
@@ -3829,7 +3887,6 @@ function renderBinaryMetrics() {
     // Class metrics
     if (bm.classes && bm.classes.length > 0) {
         const baselineData = getBaseline(bm.classes, 'ref1');
-        // Get metro's ref2 data for comparing non-metro frameworks
         const metroClass = bm.classes.find(c => c.key === 'metro');
         const metroRef2 = metroClass?.ref2;
 
@@ -3844,10 +3901,9 @@ function renderBinaryMetrics() {
         bm.classes.forEach(c => {
             const isBaseline = c.key === selectedBaseline;
             const rowClass = isBaseline ? 'baseline-row' : '';
-            // For non-metro frameworks, use metro's ref2 as comparison target
             const isMetro = c.key === 'metro';
-            const compareData = isMetro ? c.ref2 : metroRef2;
-            const compareRef1 = isMetro ? c.ref1 : c.ref1;
+            // Only show ref2 data for metro (the actual framework that was benchmarked on ref2)
+            const hasRef2Data = isMetro && c.ref2;
 
             html += `<tr class="${rowClass}">`;
             if (showVsBaseline) html += `<td class="baseline-select" onclick="setBaseline('${c.key}')"><span class="baseline-radio ${isBaseline ? 'selected' : ''}"></span></td>`;
@@ -3859,21 +3915,41 @@ function renderBinaryMetrics() {
             html += `<td class="numeric">${c.ref1?.classes?.length ?? '—'}</td>`;
             if (showVsBaseline) html += `<td class="numeric">${formatVsBaseline(c.ref1?.sizeBytes, baselineData?.sizeBytes)}</td>`;
             if (hasRef2) {
-                // Show ref2 values with delta annotation (comparing to ref1)
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.fields, compareRef1?.fields)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.methods, compareRef1?.methods)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.shards, compareRef1?.shards)}</td>`;
-                html += `<td class="numeric">${formatBytesWithDelta(compareData?.sizeBytes, compareRef1?.sizeBytes)}</td>`;
+                if (hasRef2Data) {
+                    // Show ref2 values with delta annotation (comparing to ref1)
+                    html += `<td class="numeric">${formatCountWithDelta(c.ref2?.fields, c.ref1?.fields)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(c.ref2?.methods, c.ref1?.methods)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(c.ref2?.shards, c.ref1?.shards)}</td>`;
+                    html += `<td class="numeric">${formatBytesWithDelta(c.ref2?.sizeBytes, c.ref1?.sizeBytes)}</td>`;
+                } else {
+                    // Non-metro frameworks weren't run on ref2
+                    html += '<td class="numeric no-data">—</td><td class="numeric no-data">—</td><td class="numeric no-data">—</td><td class="numeric no-data">—</td>';
+                }
             }
             html += '</tr>';
         });
-        html += '</tbody></table></div>';
+        html += '</tbody></table>';
+
+        // Cross-framework comparison section (Metro ref2 vs Other Frameworks ref1)
+        if (hasRef2 && metroRef2 && bm.classes.length > 1) {
+            html += '<h3 style="margin-top:1.5rem;font-size:1rem;color:#666;">Metro (ref2) vs Other Frameworks (ref1)</h3>';
+            html += '<table><thead><tr><th>Comparison</th><th class="numeric">Δ Fields</th><th class="numeric">Δ Methods</th><th class="numeric">Δ Shards</th><th class="numeric">Δ Size</th></tr></thead><tbody>';
+            bm.classes.filter(c => c.key !== 'metro').forEach(c => {
+                html += `<tr><td style="color: ${colors[c.key]}">vs ${c.framework}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.fields, c.ref1?.fields)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.methods, c.ref1?.methods)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.shards, c.ref1?.shards)}</td>`;
+                html += `<td class="numeric">${formatBytesDelta(metroRef2?.sizeBytes, c.ref1?.sizeBytes)}</td>`;
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        }
+        html += '</div>';
     }
 
     // R8 JAR metrics
     if (bm.r8Jars && bm.r8Jars.length > 0) {
         const baselineData = getBaseline(bm.r8Jars, 'ref1');
-        // Get metro's ref2 data for comparing non-metro frameworks
         const metroJar = bm.r8Jars.find(j => j.key === 'metro');
         const metroRef2 = metroJar?.ref2;
 
@@ -3888,10 +3964,9 @@ function renderBinaryMetrics() {
         bm.r8Jars.forEach(j => {
             const isBaseline = j.key === selectedBaseline;
             const rowClass = isBaseline ? 'baseline-row' : '';
-            // For non-metro frameworks, use metro's ref2 as comparison target
             const isMetro = j.key === 'metro';
-            const compareData = isMetro ? j.ref2 : metroRef2;
-            const compareRef1 = isMetro ? j.ref1 : j.ref1;
+            // Only show ref2 data for metro (the actual framework that was benchmarked on ref2)
+            const hasRef2Data = isMetro && j.ref2;
 
             html += `<tr class="${rowClass}">`;
             if (showVsBaseline) html += `<td class="baseline-select" onclick="setBaseline('${j.key}')"><span class="baseline-radio ${isBaseline ? 'selected' : ''}"></span></td>`;
@@ -3902,21 +3977,41 @@ function renderBinaryMetrics() {
             html += `<td class="numeric">${j.ref1?.fields?.toLocaleString() ?? '—'}</td>`;
             if (showVsBaseline) html += `<td class="numeric">${formatVsBaseline(j.ref1?.sizeBytes, baselineData?.sizeBytes)}</td>`;
             if (hasRef2) {
-                // Show ref2 values with delta annotation (comparing to ref1)
-                html += `<td class="numeric">${formatBytesWithDelta(compareData?.sizeBytes, compareRef1?.sizeBytes)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.classCount, compareRef1?.classCount)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.methods, compareRef1?.methods)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.fields, compareRef1?.fields)}</td>`;
+                if (hasRef2Data) {
+                    // Show ref2 values with delta annotation (comparing to ref1)
+                    html += `<td class="numeric">${formatBytesWithDelta(j.ref2?.sizeBytes, j.ref1?.sizeBytes)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(j.ref2?.classCount, j.ref1?.classCount)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(j.ref2?.methods, j.ref1?.methods)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(j.ref2?.fields, j.ref1?.fields)}</td>`;
+                } else {
+                    // Non-metro frameworks weren't run on ref2
+                    html += '<td class="numeric no-data">—</td><td class="numeric no-data">—</td><td class="numeric no-data">—</td><td class="numeric no-data">—</td>';
+                }
             }
             html += '</tr>';
         });
-        html += '</tbody></table></div>';
+        html += '</tbody></table>';
+
+        // Cross-framework comparison section (Metro ref2 vs Other Frameworks ref1)
+        if (hasRef2 && metroRef2 && bm.r8Jars.length > 1) {
+            html += '<h3 style="margin-top:1.5rem;font-size:1rem;color:#666;">Metro (ref2) vs Other Frameworks (ref1)</h3>';
+            html += '<table><thead><tr><th>Comparison</th><th class="numeric">Δ JAR Size</th><th class="numeric">Δ Classes</th><th class="numeric">Δ Methods</th><th class="numeric">Δ Fields</th></tr></thead><tbody>';
+            bm.r8Jars.filter(j => j.key !== 'metro').forEach(j => {
+                html += `<tr><td style="color: ${colors[j.key]}">vs ${j.framework}</td>`;
+                html += `<td class="numeric">${formatBytesDelta(metroRef2?.sizeBytes, j.ref1?.sizeBytes)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.classCount, j.ref1?.classCount)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.methods, j.ref1?.methods)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.fields, j.ref1?.fields)}</td>`;
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        }
+        html += '</div>';
     }
 
     // APK metrics
     if (bm.apks && bm.apks.length > 0) {
         const baselineData = getBaseline(bm.apks, 'ref1');
-        // Get metro's ref2 data for comparing non-metro frameworks
         const metroApk = bm.apks.find(a => a.key === 'metro');
         const metroRef2 = metroApk?.ref2;
 
@@ -3935,10 +4030,9 @@ function renderBinaryMetrics() {
         bm.apks.forEach(a => {
             const isBaseline = a.key === selectedBaseline;
             const rowClass = isBaseline ? 'baseline-row' : '';
-            // For non-metro frameworks, use metro's ref2 as comparison target
             const isMetro = a.key === 'metro';
-            const compareData = isMetro ? a.ref2 : metroRef2;
-            const compareRef1 = isMetro ? a.ref1 : a.ref1;
+            // Only show ref2 data for metro (the actual framework that was benchmarked on ref2)
+            const hasRef2Data = isMetro && a.ref2;
 
             html += `<tr class="${rowClass}">`;
             if (showVsBaseline) html += `<td class="baseline-select" onclick="setBaseline('${a.key}')"><span class="baseline-radio ${isBaseline ? 'selected' : ''}"></span></td>`;
@@ -3950,16 +4044,38 @@ function renderBinaryMetrics() {
             html += `<td class="numeric">${a.ref1?.dexFields?.toLocaleString() ?? '—'}</td>`;
             if (showVsBaseline) html += `<td class="numeric">${formatVsBaseline(a.ref1?.sizeBytes, baselineData?.sizeBytes)}</td>`;
             if (hasRef2) {
-                // Show ref2 values with delta annotation (comparing to ref1)
-                html += `<td class="numeric">${formatBytesWithDelta(compareData?.sizeBytes, compareRef1?.sizeBytes)}</td>`;
-                html += `<td class="numeric">${formatBytesWithDelta(compareData?.dexSizeBytes, compareRef1?.dexSizeBytes)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.dexClasses, compareRef1?.dexClasses)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.dexMethods, compareRef1?.dexMethods)}</td>`;
-                html += `<td class="numeric">${formatCountWithDelta(compareData?.dexFields, compareRef1?.dexFields)}</td>`;
+                if (hasRef2Data) {
+                    // Show ref2 values with delta annotation (comparing to ref1)
+                    html += `<td class="numeric">${formatBytesWithDelta(a.ref2?.sizeBytes, a.ref1?.sizeBytes)}</td>`;
+                    html += `<td class="numeric">${formatBytesWithDelta(a.ref2?.dexSizeBytes, a.ref1?.dexSizeBytes)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(a.ref2?.dexClasses, a.ref1?.dexClasses)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(a.ref2?.dexMethods, a.ref1?.dexMethods)}</td>`;
+                    html += `<td class="numeric">${formatCountWithDelta(a.ref2?.dexFields, a.ref1?.dexFields)}</td>`;
+                } else {
+                    // Non-metro frameworks weren't run on ref2
+                    html += '<td class="numeric no-data">—</td><td class="numeric no-data">—</td><td class="numeric no-data">—</td><td class="numeric no-data">—</td><td class="numeric no-data">—</td>';
+                }
             }
             html += '</tr>';
         });
-        html += '</tbody></table></div>';
+        html += '</tbody></table>';
+
+        // Cross-framework comparison section (Metro ref2 vs Other Frameworks ref1)
+        if (hasRef2 && metroRef2 && bm.apks.length > 1) {
+            html += '<h3 style="margin-top:1.5rem;font-size:1rem;color:#666;">Metro (ref2) vs Other Frameworks (ref1)</h3>';
+            html += '<table><thead><tr><th>Comparison</th><th class="numeric">Δ APK Size</th><th class="numeric">Δ DEX Size</th><th class="numeric">Δ DEX Classes</th><th class="numeric">Δ DEX Methods</th><th class="numeric">Δ DEX Fields</th></tr></thead><tbody>';
+            bm.apks.filter(a => a.key !== 'metro').forEach(a => {
+                html += `<tr><td style="color: ${colors[a.key]}">vs ${a.framework}</td>`;
+                html += `<td class="numeric">${formatBytesDelta(metroRef2?.sizeBytes, a.ref1?.sizeBytes)}</td>`;
+                html += `<td class="numeric">${formatBytesDelta(metroRef2?.dexSizeBytes, a.ref1?.dexSizeBytes)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.dexClasses, a.ref1?.dexClasses)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.dexMethods, a.ref1?.dexMethods)}</td>`;
+                html += `<td class="numeric">${formatDelta(metroRef2?.dexFields, a.ref1?.dexFields)}</td>`;
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        }
+        html += '</div>';
     }
 
     container.innerHTML = html;
