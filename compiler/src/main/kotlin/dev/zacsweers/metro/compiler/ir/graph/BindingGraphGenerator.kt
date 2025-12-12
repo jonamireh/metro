@@ -456,35 +456,11 @@ internal class BindingGraphGenerator(
       }
     }
 
+    // Register optional bindings for lazy creation (only when accessed)
     for ((optionalKey, callables) in allOptionalKeys) {
-      val declaration = callables.first().function
-      val type =
-        optionalKey.type.optionalType(declaration)
-          ?: reportCompilerBug(
-            "Optional type not supported: ${optionalKey.type.rawType().classIdOrFail.asSingleFqName()}"
-          )
-
-      // Construct a valid context key for this case
-      val contextKey =
-        type.asContextualTypeKey(
-          qualifierAnnotation = optionalKey.qualifier,
-          // Optionals have default behavior
-          hasDefault = true,
-          patchMutableCollections = true,
-          declaration = null,
-        )
-
-      val binding =
-        IrBinding.CustomWrapper(
-          typeKey = optionalKey,
-          wrapperKey = IrOptionalExpressionGenerator.key,
-          allowsAbsent = true,
-          declaration = declaration,
-          wrappedType = type,
-          wrappedContextKey = contextKey,
-        )
-
-      graph.addBinding(optionalKey, binding, bindingStack)
+      for (callable in callables) {
+        bindingLookup.registerOptionalBinding(optionalKey, callable)
+      }
     }
 
     // Traverse all parent graph supertypes to create binding aliases as needed
