@@ -87,7 +87,8 @@ internal class BindingLookup(
 
   // Optional binding declarations (@BindsOptionalOf)
   // Key: Optional<T> type, Value: set of @BindsOptionalOf callables
-  private val optionalBindingDeclarations = mutableMapOf<IrTypeKey, MutableSet<BindsOptionalOfCallable>>()
+  private val optionalBindingDeclarations =
+    mutableMapOf<IrTypeKey, MutableSet<BindsOptionalOfCallable>>()
   // Cache for created optional bindings
   private val optionalBindingsCache = mutableMapOf<IrTypeKey, IrBinding.CustomWrapper>()
 
