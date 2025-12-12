@@ -9,6 +9,7 @@ import dev.zacsweers.metro.compiler.reportCompilerBug
 import dev.zacsweers.metro.compiler.symbols.Symbols
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classOrFail
 import org.jetbrains.kotlin.ir.types.classOrNull
@@ -31,25 +32,42 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
     contributions.getOrPut(scope) { mutableSetOf() }.add(contribution)
   }
 
-  fun getContributions(scope: Scope): Set<IrType> = buildSet {
-    contributions[scope]?.let(::addAll)
-    addAll(findExternalContributions(scope))
-  }
+  fun getContributions(scope: Scope, callingDeclaration: IrDeclaration? = null): Set<IrType> =
+    buildSet {
+      contributions[scope]?.let(::addAll)
+      addAll(findExternalContributions(scope, callingDeclaration))
+    }
 
   fun addBindingContainerContribution(scope: Scope, contribution: IrClass) {
     bindingContainerContributions.getOrPut(scope) { mutableSetOf() }.add(contribution)
   }
 
-  fun getBindingContainerContributions(scope: Scope): Set<IrClass> = buildSet {
+  fun getBindingContainerContributions(
+    scope: Scope,
+    callingDeclaration: IrDeclaration? = null,
+  ): Set<IrClass> = buildSet {
     bindingContainerContributions[scope]?.let(::addAll)
-    addAll(findExternalBindingContainerContributions(scope))
+    addAll(findExternalBindingContainerContributions(scope, callingDeclaration))
   }
 
   fun findVisibleContributionClassesForScopeInHints(
     scope: Scope,
     includeNonFriendInternals: Boolean = false,
+    callingDeclaration: IrDeclaration? = null,
   ): Set<IrClass> {
     val functionsInPackage = metroContext.referenceFunctions(Symbols.CallableIds.scopeHint(scope))
+
+    callingDeclaration?.let { caller ->
+      with(metroContext) {
+        val scopeHintName = Symbols.CallableIds.scopeHint(scope)
+        trackClassLookup(
+          callingDeclaration = caller,
+          container = scopeHintName.packageName,
+          declarationName = scopeHintName.callableName.asString(),
+        )
+      }
+    }
+
     val contributingClasses =
       functionsInPackage
         .filter {
@@ -69,18 +87,32 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
 
   // TODO this may do multiple lookups of the same origin class if it contributes to multiple scopes
   //  something we could possibly optimize in the future.
-  private fun findExternalContributions(scope: Scope): Set<IrType> {
+  private fun findExternalContributions(
+    scope: Scope,
+    callingDeclaration: IrDeclaration?,
+  ): Set<IrType> {
     return externalContributions.getOrPut(scope) {
-      val contributingClasses = findVisibleContributionClassesForScopeInHints(scope)
+      val contributingClasses =
+        findVisibleContributionClassesForScopeInHints(
+          scope,
+          callingDeclaration = callingDeclaration,
+        )
       getScopedContributions(contributingClasses, scope, bindingContainersOnly = false)
     }
   }
 
   // TODO this may do multiple lookups of the same origin class if it contributes to multiple scopes
   //  something we could possibly optimize in the future.
-  private fun findExternalBindingContainerContributions(scope: Scope): Set<IrClass> {
+  private fun findExternalBindingContainerContributions(
+    scope: Scope,
+    callingDeclaration: IrDeclaration?,
+  ): Set<IrClass> {
     return externalBindingContainerContributions.getOrPut(scope) {
-      val contributingClasses = findVisibleContributionClassesForScopeInHints(scope)
+      val contributingClasses =
+        findVisibleContributionClassesForScopeInHints(
+          scope,
+          callingDeclaration = callingDeclaration,
+        )
       getScopedContributions(contributingClasses, scope, bindingContainersOnly = true)
         .mapNotNullToSet {
           it.classOrNull?.owner?.takeIf { irClass ->

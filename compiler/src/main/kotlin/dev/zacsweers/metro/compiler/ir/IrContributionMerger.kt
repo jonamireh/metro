@@ -6,6 +6,7 @@ import dev.zacsweers.metro.compiler.symbols.Symbols
 import java.util.SortedMap
 import java.util.SortedSet
 import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.classId
@@ -37,7 +38,10 @@ internal class IrContributionMerger(
     val excluded: Set<ClassId>,
   )
 
-  fun computeContributions(graphLikeAnnotation: IrConstructorCall): IrContributions? {
+  fun computeContributions(
+    graphLikeAnnotation: IrConstructorCall,
+    callingDeclaration: IrDeclaration? = null,
+  ): IrContributions? {
     val sourceScope = graphLikeAnnotation.scopeClassOrNull()
     val scope = sourceScope?.classId
 
@@ -55,7 +59,7 @@ internal class IrContributionMerger(
         }
 
       val excluded = graphLikeAnnotation.excludedClasses().mapToClassIds()
-      return computeContributions(scope, allScopes, excluded)
+      return computeContributions(scope, allScopes, excluded, callingDeclaration)
     } else {
       return null
     }
@@ -65,6 +69,7 @@ internal class IrContributionMerger(
     primaryScope: ClassId,
     allScopes: Set<ClassId>,
     excluded: Set<ClassId>,
+    callingDeclaration: IrDeclaration? = null,
   ): IrContributions? {
     if (allScopes.isEmpty()) return null
 
@@ -80,7 +85,7 @@ internal class IrContributionMerger(
         // Get all contributions and binding containers
         val allContributions =
           allScopes
-            .flatMap { contributionData.getContributions(it) }
+            .flatMap { contributionData.getContributions(it, callingDeclaration) }
             .groupByTo(mutableMapOf()) {
               // For Metro contributions, we need to check the parent class ID
               // This is always the `MetroContribution`, the contribution's parent is the actual
@@ -90,7 +95,7 @@ internal class IrContributionMerger(
 
         val bindingContainers =
           allScopes
-            .flatMap { contributionData.getBindingContainerContributions(it) }
+            .flatMap { contributionData.getBindingContainerContributions(it, callingDeclaration) }
             .associateByTo(mutableMapOf()) { it.classIdOrFail }
 
         // Build a cache of origin class -> contribution classes mappings upfront

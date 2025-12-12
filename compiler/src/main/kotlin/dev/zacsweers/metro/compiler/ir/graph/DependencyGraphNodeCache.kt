@@ -903,6 +903,7 @@ internal class DependencyGraphNodeCache(
             primaryScope = aggregationScopes.first(),
             allScopes = aggregationScopes,
             excluded = excludes,
+            callingDeclaration = graphDeclaration,
           )
           ?.bindingContainers
           ?.values
