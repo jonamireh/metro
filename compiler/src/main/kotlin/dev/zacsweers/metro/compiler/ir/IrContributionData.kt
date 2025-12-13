@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.fileOrNull
 import org.jetbrains.kotlin.ir.util.nestedClasses
+import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 
 private typealias Scope = ClassId
@@ -25,6 +26,10 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
 
   private val contributions = mutableMapOf<Scope, MutableSet<IrType>>()
   private val externalContributions = mutableMapOf<Scope, Set<IrType>>()
+  private val scopeHintCache = mutableMapOf<Scope, CallableId>()
+
+  private fun scopeHintFor(scope: Scope): CallableId =
+    scopeHintCache.getOrPut(scope) { Symbols.CallableIds.scopeHint(scope) }
 
   private val bindingContainerContributions = mutableMapOf<Scope, MutableSet<IrClass>>()
   private val externalBindingContainerContributions = mutableMapOf<Scope, Set<IrClass>>()
@@ -51,16 +56,15 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
     addAll(findExternalBindingContainerContributions(scope, callingDeclaration))
   }
 
-  fun findVisibleContributionClassesForScopeInHints(
-    scope: Scope,
-    includeNonFriendInternals: Boolean = false,
-    callingDeclaration: IrDeclaration? = null,
-  ): Set<IrClass> {
-    val functionsInPackage = metroContext.referenceFunctions(Symbols.CallableIds.scopeHint(scope))
-
+  /**
+   * Tracks a lookup on scope hint functions for incremental compilation. This should be called
+   * before checking any caches to ensure all callers register their dependency on scope hint
+   * changes.
+   */
+  fun trackScopeHintLookup(scope: Scope, callingDeclaration: IrDeclaration?) {
     callingDeclaration?.let { caller ->
       with(metroContext) {
-        val scopeHintName = Symbols.CallableIds.scopeHint(scope)
+        val scopeHintName = scopeHintFor(scope)
         trackClassLookup(
           callingDeclaration = caller,
           container = scopeHintName.packageName,
@@ -68,6 +72,16 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
         )
       }
     }
+  }
+
+  fun findVisibleContributionClassesForScopeInHints(
+    scope: Scope,
+    includeNonFriendInternals: Boolean = false,
+    callingDeclaration: IrDeclaration? = null,
+  ): Set<IrClass> {
+    val functionsInPackage = metroContext.referenceFunctions(scopeHintFor(scope))
+
+    trackScopeHintLookup(scope, callingDeclaration)
 
     val contributingClasses =
       functionsInPackage
@@ -92,12 +106,10 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
     scope: Scope,
     callingDeclaration: IrDeclaration?,
   ): Set<IrType> {
+    // Track the lookup before checking the cache so all callers register their dependency
+    trackScopeHintLookup(scope, callingDeclaration)
     return externalContributions.getOrPut(scope) {
-      val contributingClasses =
-        findVisibleContributionClassesForScopeInHints(
-          scope,
-          callingDeclaration = callingDeclaration,
-        )
+      val contributingClasses = findVisibleContributionClassesForScopeInHints(scope)
       getScopedContributions(contributingClasses, scope, bindingContainersOnly = false)
     }
   }
@@ -108,12 +120,10 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
     scope: Scope,
     callingDeclaration: IrDeclaration?,
   ): Set<IrClass> {
+    // Track the lookup before checking the cache so all callers register their dependency
+    trackScopeHintLookup(scope, callingDeclaration)
     return externalBindingContainerContributions.getOrPut(scope) {
-      val contributingClasses =
-        findVisibleContributionClassesForScopeInHints(
-          scope,
-          callingDeclaration = callingDeclaration,
-        )
+      val contributingClasses = findVisibleContributionClassesForScopeInHints(scope)
       getScopedContributions(contributingClasses, scope, bindingContainersOnly = true)
         .mapNotNullToSet {
           it.classOrNull?.owner?.takeIf { irClass ->

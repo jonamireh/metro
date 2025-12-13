@@ -74,6 +74,12 @@ internal class IrContributionMerger(
   ): IrContributions? {
     if (allScopes.isEmpty()) return null
 
+    // Track scope hint lookups before checking caches to ensure all callers
+    // register their IC dependency, even when hitting a cached result
+    for (scope in allScopes) {
+      contributionData.trackScopeHintLookup(scope, callingDeclaration)
+    }
+
     // Layer 2: Check if we have a fully processed result cached
     val cacheKey = ContributionsCacheKey(primaryScope, allScopes, excluded)
     mergedContributionsCache[cacheKey]?.let {
@@ -109,8 +115,7 @@ internal class IrContributionMerger(
           val contributionClass = contributions.firstOrNull()?.rawTypeOrNull()
           if (contributionClass != null) {
             contributionClass.originClassId()?.let { originClassId ->
-              originToContributions
-                .getAndAdd(originClassId, contributionClassId)
+              originToContributions.getAndAdd(originClassId, contributionClassId)
             }
           }
         }
