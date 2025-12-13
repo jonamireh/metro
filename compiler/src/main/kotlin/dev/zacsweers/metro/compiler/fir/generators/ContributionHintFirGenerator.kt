@@ -81,8 +81,10 @@ internal class ContributionHintFirGenerator(session: FirSession, compatContext: 
           }
         for (contributionScope in contributionScopes) {
           val hintName = contributionScope.scopeHintFunctionName()
-          callableIds
-            .getAndAdd(CallableId(Symbols.FqNames.metroHintsPackage, hintName), contributingClass)
+          callableIds.getAndAdd(
+            CallableId(Symbols.FqNames.metroHintsPackage, hintName),
+            contributingClass,
+          )
         }
       }
 
