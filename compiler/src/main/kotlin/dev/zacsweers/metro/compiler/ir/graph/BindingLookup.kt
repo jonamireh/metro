@@ -72,6 +72,7 @@ internal class BindingLookup(
   // Multibinding tracking
   // Key: multibinding type (Set<T> or Map<K, V>), Value: set of source binding keys
   private val multibindingContributions = mutableMapOf<IrTypeKey, MutableSet<IrTypeKey>>()
+
   // Cache for created multibindings
   private val multibindingsCache = mutableMapOf<IrTypeKey, IrBinding.Multibinding>()
 
@@ -360,12 +361,11 @@ internal class BindingLookup(
     val contextKey =
       wrappedType.asContextualTypeKey(
         qualifierAnnotation = typeKey.qualifier,
-        hasDefault = true, // Key part: allows the wrapped type to be absent
+        hasDefault = true,
         patchMutableCollections = true,
         declaration = null,
       )
 
-    // Create the CustomWrapper binding
     val binding =
       IrBinding.CustomWrapper(
         typeKey = typeKey,
