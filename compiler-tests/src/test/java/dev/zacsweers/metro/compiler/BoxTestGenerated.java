@@ -1289,6 +1289,12 @@ public class BoxTestGenerated extends AbstractBoxTest {
       }
 
       @Test
+      @TestMetadata("BindsOptionalOfUnused.kt")
+      public void testBindsOptionalOfUnused() {
+        runTest("compiler-tests/src/test/data/box/interop/dagger/BindsOptionalOfUnused.kt");
+      }
+
+      @Test
       @TestMetadata("ComponentDependenciesAreNotMistakenForScopes.kt")
       public void testComponentDependenciesAreNotMistakenForScopes() {
         runTest("compiler-tests/src/test/data/box/interop/dagger/ComponentDependenciesAreNotMistakenForScopes.kt");
