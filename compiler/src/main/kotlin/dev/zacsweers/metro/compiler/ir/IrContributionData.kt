@@ -3,6 +3,7 @@
 package dev.zacsweers.metro.compiler.ir
 
 import dev.zacsweers.metro.compiler.flatMapToSet
+import dev.zacsweers.metro.compiler.getAndAdd
 import dev.zacsweers.metro.compiler.mapNotNullToSet
 import dev.zacsweers.metro.compiler.mapToSet
 import dev.zacsweers.metro.compiler.reportCompilerBug
@@ -29,7 +30,7 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
   private val externalBindingContainerContributions = mutableMapOf<Scope, Set<IrClass>>()
 
   fun addContribution(scope: Scope, contribution: IrType) {
-    contributions.getOrPut(scope) { mutableSetOf() }.add(contribution)
+    contributions.getAndAdd(scope, contribution)
   }
 
   fun getContributions(scope: Scope, callingDeclaration: IrDeclaration? = null): Set<IrType> =
@@ -39,7 +40,7 @@ internal class IrContributionData(private val metroContext: IrMetroContext) {
     }
 
   fun addBindingContainerContribution(scope: Scope, contribution: IrClass) {
-    bindingContainerContributions.getOrPut(scope) { mutableSetOf() }.add(contribution)
+    bindingContainerContributions.getAndAdd(scope, contribution)
   }
 
   fun getBindingContainerContributions(

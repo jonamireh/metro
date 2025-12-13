@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package dev.zacsweers.metro.compiler.ir
 
+import dev.zacsweers.metro.compiler.getAndAdd
 import dev.zacsweers.metro.compiler.symbols.Symbols
 import java.util.SortedMap
 import java.util.SortedSet
@@ -109,8 +110,7 @@ internal class IrContributionMerger(
           if (contributionClass != null) {
             contributionClass.originClassId()?.let { originClassId ->
               originToContributions
-                .getOrPut(originClassId) { mutableSetOf() }
-                .add(contributionClassId)
+                .getAndAdd(originClassId, contributionClassId)
             }
           }
         }
@@ -118,7 +118,7 @@ internal class IrContributionMerger(
         // Also check binding containers (e.g., @ContributesTo classes)
         for ((containerClassId, containerClass) in bindingContainers) {
           containerClass.originClassId()?.let { originClassId ->
-            originToContributions.getOrPut(originClassId) { mutableSetOf() }.add(containerClassId)
+            originToContributions.getAndAdd(originClassId, containerClassId)
           }
         }
 
