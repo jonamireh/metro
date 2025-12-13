@@ -58,6 +58,11 @@ on:
         required: false
         type: boolean
         default: false
+      binary-metrics-only:
+        description: 'Build and compare binary metrics only (skip JMH/device benchmarks)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   # Shared job to validate inputs and build modes string
@@ -131,7 +136,7 @@ jobs:
 
   # Startup benchmarks using JMH
   startup-benchmarks:
-    name: "Startup (JMH): ${{ inputs.ref2 && format('{0} vs {1}', inputs.ref1, inputs.ref2) || inputs.ref1 }}"
+    name: "${{ !inputs.run-startup-benchmarks && 'Startup (JMH) (skipped)' || (inputs.ref2 && format('Startup (JMH): {0} vs {1}', inputs.ref1, inputs.ref2) || format('Startup (JMH): {0}', inputs.ref1)) }}"
     runs-on: ubuntu-latest
     needs: validate
     if: inputs.run-startup-benchmarks
@@ -170,13 +175,18 @@ jobs:
       - name: Run startup benchmarks
         run: |
           cd benchmark
+          BINARY_METRICS_FLAG=""
+          if [ "${{ inputs.binary-metrics-only }}" = "true" ]; then
+            BINARY_METRICS_FLAG="--binary-metrics-only"
+          fi
           if [ "${{ needs.validate.outputs.is_single_ref }}" = "true" ]; then
             # Single-ref mode
             ./run_startup_benchmarks.sh single \
               --ref "${{ inputs.ref1 }}" \
               --modes "${{ needs.validate.outputs.modes }}" \
               --count "${{ inputs.module_count }}" \
-              --benchmark jvm
+              --benchmark jvm \
+              $BINARY_METRICS_FLAG
           else
             # Comparison mode
             RERUN_FLAG=""
@@ -189,7 +199,8 @@ jobs:
               --modes "${{ needs.validate.outputs.modes }}" \
               --count "${{ inputs.module_count }}" \
               --benchmark jvm \
-              $RERUN_FLAG
+              $RERUN_FLAG \
+              $BINARY_METRICS_FLAG
           fi
 
       - name: Find results directory
@@ -204,7 +215,7 @@ jobs:
           echo "Results directory: $results_dir"
 
       - name: Upload startup benchmark results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: startup-benchmark-results
           path: ${{ steps.results.outputs.results_dir }}
@@ -234,7 +245,7 @@ jobs:
 
   # Startup benchmarks with R8 minification
   startup-r8-benchmarks:
-    name: "Startup R8 (JMH): ${{ inputs.ref2 && format('{0} vs {1}', inputs.ref1, inputs.ref2) || inputs.ref1 }}"
+    name: "${{ !inputs.run-startup-r8-benchmarks && 'Startup R8 (JMH) (skipped)' || (inputs.ref2 && format('Startup R8 (JMH): {0} vs {1}', inputs.ref1, inputs.ref2) || format('Startup R8 (JMH): {0}', inputs.ref1)) }}"
     runs-on: ubuntu-latest
     needs: validate
     if: inputs.run-startup-r8-benchmarks
@@ -270,16 +281,24 @@ jobs:
           # Return to ref1 as the starting point
           git checkout "${{ inputs.ref1 }}"
 
+      - name: Install diffuse
+        run: ./benchmark/install-diffuse.sh
+
       - name: Run R8 startup benchmarks
         run: |
           cd benchmark
+          BINARY_METRICS_FLAG=""
+          if [ "${{ inputs.binary-metrics-only }}" = "true" ]; then
+            BINARY_METRICS_FLAG="--binary-metrics-only"
+          fi
           if [ "${{ needs.validate.outputs.is_single_ref }}" = "true" ]; then
             # Single-ref mode
             ./run_startup_benchmarks.sh single \
               --ref "${{ inputs.ref1 }}" \
               --modes "${{ needs.validate.outputs.modes }}" \
               --count "${{ inputs.module_count }}" \
-              --benchmark jvm-r8
+              --benchmark jvm-r8 \
+              $BINARY_METRICS_FLAG
           else
             # Comparison mode
             RERUN_FLAG=""
@@ -292,7 +311,8 @@ jobs:
               --modes "${{ needs.validate.outputs.modes }}" \
               --count "${{ inputs.module_count }}" \
               --benchmark jvm-r8 \
-              $RERUN_FLAG
+              $RERUN_FLAG \
+              $BINARY_METRICS_FLAG
           fi
 
       - name: Find results directory
@@ -307,11 +327,20 @@ jobs:
           echo "Results directory: $results_dir"
 
       - name: Upload R8 startup benchmark results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: startup-r8-benchmark-results
           path: ${{ steps.results.outputs.results_dir }}
           retention-days: 30
+
+      - name: Upload diffuse output
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: diffuse-output
+          path: ${{ steps.results.outputs.results_dir }}diffuse/
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Add R8 startup summary to workflow
         run: |
@@ -337,7 +366,7 @@ jobs:
 
   # Build benchmarks using Gradle Profiler
   build-benchmarks:
-    name: "Build (Gradle Profiler): ${{ inputs.ref2 && format('{0} vs {1}', inputs.ref1, inputs.ref2) || inputs.ref1 }}"
+    name: "${{ !inputs.run-build-benchmarks && 'Build (Gradle Profiler) (skipped)' || (inputs.ref2 && format('Build (Gradle Profiler): {0} vs {1}', inputs.ref1, inputs.ref2) || format('Build (Gradle Profiler): {0}', inputs.ref1)) }}"
     runs-on: ubuntu-latest
     needs: validate
     if: inputs.run-build-benchmarks
@@ -411,7 +440,7 @@ jobs:
           echo "Results directory: $results_dir"
 
       - name: Upload build benchmark results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-benchmark-results
           path: ${{ steps.results.outputs.results_dir }}

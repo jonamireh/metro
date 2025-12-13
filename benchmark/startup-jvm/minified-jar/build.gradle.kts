@@ -22,28 +22,25 @@ abstract class BaseR8Task : JavaExec() {
 
   @get:InputFiles
   @get:PathSensitive(PathSensitivity.RELATIVE)
-  abstract val runtimeClasspathProp: ConfigurableFileCollection
+  abstract val programClasspathProp: ConfigurableFileCollection
 
-  /** Whether to pass runtime classpath as --classpath (library) or as program jars */
-  @get:Input abstract val useClasspathForDeps: Property<Boolean>
+  @get:InputFiles
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val libraryClasspathProp: ConfigurableFileCollection
 
   fun r8ArgumentProvider(): CommandLineArgumentProvider {
     return CommandLineArgumentProvider {
       buildList {
         addAll(computeArgs())
-        val classpathFiles = runtimeClasspathProp.files.filter { it.isFile }
-        if (useClasspathForDeps.getOrElse(false) && classpathFiles.isNotEmpty()) {
-          // Pass dependencies as --classpath so they're used for analysis only, not included in
-          // output
-          // Each file needs its own --classpath argument
-          classpathFiles.forEach { file ->
+        // Program jars (included in output after optimization)
+        programClasspathProp.files.filter { it.isFile }.forEach { file -> add(file.absolutePath) }
+        // Library jars (used for analysis only, not included in output)
+        libraryClasspathProp.files
+          .filter { it.isFile }
+          .forEach { file ->
             add("--classpath")
             add(file.absolutePath)
           }
-        } else {
-          // Pass as program jars (included in output)
-          classpathFiles.forEach { file -> add(file.absolutePath) }
-        }
         add(componentJarProp.get().asFile.absolutePath)
       }
     }
@@ -51,9 +48,16 @@ abstract class BaseR8Task : JavaExec() {
 
   abstract fun computeArgs(): Iterable<String>
 
-  fun configureR8Inputs(componentJar: Provider<RegularFile>, runtimeClasspath: FileCollection) {
+  fun configureR8Inputs(
+    componentJar: Provider<RegularFile>,
+    programClasspath: FileCollection,
+    libraryClasspath: FileCollection?,
+  ) {
     componentJarProp.set(componentJar)
-    runtimeClasspathProp.from(runtimeClasspath)
+    programClasspathProp.from(programClasspath)
+    if (libraryClasspath != null) {
+      libraryClasspathProp.from(libraryClasspath)
+    }
   }
 }
 
@@ -95,6 +99,8 @@ abstract class R8Task : BaseR8Task() {
       add(mapping.get().asFile.absolutePath)
       add("--lib")
       add(javaHome.get())
+      // Don't include data resources (META-INF files, etc.) to avoid duplicate resource warnings
+      add("--no-data-resources")
     }
   }
 }
@@ -113,6 +119,9 @@ val componentJar =
     from(componentProject.layout.buildDirectory.dir("classes/kotlin/main"))
     from(componentProject.layout.buildDirectory.dir("classes/java/main"))
 
+    // Exclude duplicate META-INF resources to avoid R8 warnings
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
     archiveBaseName.set("component")
     destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
   }
@@ -121,9 +130,23 @@ val componentJar =
 // This excludes the component project's own build outputs since we're creating our own jar from
 // sources
 val componentBuildPath = componentProject.layout.buildDirectory.get().asFile.absolutePath
+val benchmarkRootPath = rootProject.projectDir.absolutePath
 val componentRuntimeClasspath =
   componentProject.configurations.named("runtimeClasspath").get().filter { file ->
     !file.absolutePath.startsWith(componentBuildPath)
+  }
+
+// Separate program classpath (project modules - included in output) from
+// library classpath (external deps like kotlin stdlib - used for analysis only)
+val programClasspath =
+  componentRuntimeClasspath.filter { file ->
+    // Project modules are under the benchmark root directory
+    file.absolutePath.startsWith(benchmarkRootPath)
+  }
+val libraryClasspath =
+  componentRuntimeClasspath.filter { file ->
+    // External dependencies are outside the benchmark root (e.g., in .gradle/caches)
+    !file.absolutePath.startsWith(benchmarkRootPath)
   }
 
 val r8RulesExtractTask =
@@ -137,9 +160,12 @@ val r8RulesExtractTask =
     mainClass.set("com.android.tools.r8.ExtractR8Rules")
 
     r8Rules.set(layout.buildDirectory.file("shrinker/r8.txt"))
-    configureR8Inputs(componentJar.flatMap { it.archiveFile }, componentRuntimeClasspath)
-    // Extract rules needs all jars as program input
-    useClasspathForDeps.set(false)
+    // Extract rules needs all jars as program input (no library separation)
+    configureR8Inputs(
+      componentJar.flatMap { it.archiveFile },
+      componentRuntimeClasspath,
+      null, // No library classpath for rule extraction
+    )
     argumentProviders += r8ArgumentProvider()
   }
 
@@ -158,9 +184,9 @@ val r8Task =
     customRules.set(customR8RulesFile)
     r8Jar.set(layout.buildDirectory.file("libs/${project.name}.jar"))
     mapping.set(layout.buildDirectory.file("libs/${project.name}-mapping.txt"))
-    configureR8Inputs(componentJar.flatMap { it.archiveFile }, componentRuntimeClasspath)
-    // Include all deps in output (fat jar) - we want to test R8 optimization benefits
-    useClasspathForDeps.set(false)
+    // Program classpath: project modules (included in output after optimization)
+    // Library classpath: external deps like kotlin stdlib (used for analysis only, not in output)
+    configureR8Inputs(componentJar.flatMap { it.archiveFile }, programClasspath, libraryClasspath)
     argumentProviders += r8ArgumentProvider()
 
     doLast {

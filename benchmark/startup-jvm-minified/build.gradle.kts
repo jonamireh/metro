@@ -10,6 +10,9 @@ dependencies {
   jmhCompileOnly(project(":app:component"))
   // Run against the minified jar
   jmhRuntimeOnly(project(":startup-jvm:minified-jar"))
+  // Runtime dependencies not included in the minified jar (library classpath)
+  jmhRuntimeOnly("dev.zacsweers.metro:runtime:+")
+  jmhRuntimeOnly("javax.inject:javax.inject:1")
 }
 
 jmh {
