@@ -22,7 +22,7 @@ This release introduces experimental support for suspend providers. This is disa
 
 ### Enhancements
 
-Support private `@Provides` properties on Kotlin `2.4.20-Beta1` and newer.
+- Support private `@Provides` properties on Kotlin `2.4.20-Beta1` and newer.
 - **[IR]** Avoid generating unused provider fields for included graph accessors that can be read directly.
 - **[IR]** Avoid linear helper traversal in large switching providers by routing directly to the matching chunk.
 - **[runtime]** If the input function to `provider()` is already a `Provider` instance, return it directly rather than needlessly wrap it.
