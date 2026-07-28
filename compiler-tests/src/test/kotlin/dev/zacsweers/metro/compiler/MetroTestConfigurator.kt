@@ -24,6 +24,14 @@ class MetroTestConfigurator(testServices: TestServices) : MetaTestConfigurator(t
     val directives = testServices.moduleStructure.allDirectives
     if (MetroDirectives.METRO_IGNORE in directives) return true
 
+    val testClassName = testServices.testInfo.className.substringAfterLast('.').substringBefore('$')
+    if (
+      testClassName == "OmitRedundantMirrorsIrOnlyClassesBoxTestGenerated" &&
+        System.getProperty("metro.testOmitRedundantMirrors")?.toBooleanStrictOrNull() != true
+    ) {
+      return true
+    }
+
     if (
       testServices.isJsBackend() && TEST_COMPILER_TOOLING_VERSION < BUILD_COMPILER_TOOLING_VERSION
     ) {
@@ -67,8 +75,8 @@ class MetroTestConfigurator(testServices: TestServices) : MetaTestConfigurator(t
     val generateClassesInIr =
       generateClassesInIrDirectives.lastOrNull()?.toString()?.toBoolean() == true
     val irOnlyClassesSuite =
-      testServices.testInfo.className.substringAfterLast('.').substringBefore('$') ==
-        "IrOnlyClassesBoxTestGenerated"
+      testClassName == "IrOnlyClassesBoxTestGenerated" ||
+        testClassName == "OmitRedundantMirrorsIrOnlyClassesBoxTestGenerated"
     if (
       irOnlyClassesSuite &&
         shouldSkipForCompilerVersion(

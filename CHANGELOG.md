@@ -23,6 +23,7 @@ This release introduces experimental support for suspend providers. This is disa
 ### Enhancements
 
 - Support private `@Provides` properties on Kotlin `2.4.20-Beta1` and newer.
+- **[IR]** Improve IC on Kotlin `2.3.20` by backporting compat support for the compiler's new declaration finder APIs.
 - **[IR]** Avoid generating unused provider fields for included graph accessors that can be read directly.
 - **[IR]** Avoid linear helper traversal in large switching providers by routing directly to the matching chunk.
 - **[runtime]** If the input function to `provider()` is already a `Provider` instance, return it directly rather than needlessly wrap it.
@@ -32,6 +33,7 @@ This release introduces experimental support for suspend providers. This is disa
 
 - **[FIR]** Report a diagnostic when private `@Provides` properties are used without compiler support (i.e. pre-`2.4.20`).
 - **[FIR]** Report an error when a map key is applied (via type argument) to a binding without a corresponding `@IntoMap` or `@ContributesIntoMap` annotation.
+- **[IR]** Fix stale contribution hints after changing a contribution's scope during incremental compilation. This only affects Kotlin versions prior to `2.3.20`.
 - **[IR]** Fix Kotlin/Native compilation failures when generated hidden classes were missing their `Any` supertype.
 - **[IR]** Enforce `enableSuspendProviders` for suspend-provider signatures read from upstream modules.
 - **[IR]** Report a missing `runtime-coroutines` dependency from generated provider factories, including factories not used by a graph.

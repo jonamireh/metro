@@ -188,6 +188,7 @@ class MetroArtifactsTest {
       testCompilerVersion >= KotlinToolingVersion("2.3.0") &&
         testCompilerVersion < KotlinToolingVersion("2.3.20-Beta2")
     val generateClassesInIrEnabled = testCompilerVersion >= KotlinToolingVersion("2.4.20-dev-6138")
+    val omitRedundantMirrors = getTestOmitRedundantMirrorsOverride() == true
     val privateProviderPropertiesEnabled =
       testCompilerVersion >= KotlinToolingVersion("2.4.20-Beta1")
 
@@ -309,6 +310,7 @@ class MetroArtifactsTest {
                 "compilerVersionAliases": {},
                 "parallelThreads": 0,
                 "bufferedIcTracking": true,
+                "omitRedundantMirrors": $omitRedundantMirrors,
                 "enableProviderInlining": true,
                 "enableFunctionProviders": true,
                 "enableSuspendProviders": false,
