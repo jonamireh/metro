@@ -6,8 +6,6 @@ Changelog
 
 ### New
 
-- **[FIR/IR/Circuit]** Support sub-circuits (i.e. the new `@SubCircuitInject` annotation).
-
 #### Experimental support for suspend providers
 
 This release introduces experimental support for suspend providers. This is disabled by default and can be enabled by the `metro.enableSuspendProviders` option. See the [coroutines documentation](https://zacsweers.github.io/metro/latest/coroutines/) for details.
@@ -19,6 +17,10 @@ This release introduces experimental support for suspend providers. This is disa
 - Like ordinary scoped bindings, scoped suspend bindings are single-flight and retry after failures or cancellation. They also run on the coroutine context they were called on, so if this is important then you should use an appropriate `withContext` within your provider body.
 - The Gradle plugin automatically adds the new `runtime-coroutines` artifact when suspend providers are enabled. If runtime dependencies are managed manually, add it for scoped suspend bindings, `suspendLazy`, and injection requests containing `SuspendLazy` at any nesting level.
   - `runtime-coroutines` uses kotlinx-coroutines on every platform.
+
+#### Other new stuff
+
+- **[FIR/IR/Circuit]** Support sub-circuits (i.e. the new `@SubCircuitInject` annotation).
 
 ### Enhancements
 
