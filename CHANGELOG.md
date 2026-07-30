@@ -4,6 +4,11 @@ Changelog
 **Unreleased**
 --------------
 
+1.4.0
+-----
+
+_2026-07-30_
+
 ### New
 
 #### Experimental support for suspend providers
