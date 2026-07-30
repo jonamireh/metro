@@ -43,8 +43,6 @@ This release introduces experimental support for suspend providers. This is disa
 - **[FIR]** Report an error when a map key is applied (via type argument) to a binding without a corresponding `@IntoMap` or `@ContributesIntoMap` annotation.
 - **[IR]** Fix stale contribution hints after changing a contribution's scope during incremental compilation. This only affects Kotlin versions prior to `2.3.20`.
 - **[IR]** Fix Kotlin/Native compilation failures when generated hidden classes were missing their `Any` supertype.
-- **[IR]** Enforce `enableSuspendProviders` for suspend-provider signatures read from upstream modules.
-- **[IR]** Report a missing `runtime-coroutines` dependency from generated provider factories, including factories not used by a graph.
 - **[IR]** Prevent directly provided maps from satisfying suspend-provider-valued map requests unless the provided map uses that exact value type.
 - **[IR]** Avoid redundant nested `DoubleCheck.lazy()` calls when materializing `Lazy` graph accessors and binding parameters.
 - **[IR]** Correctly adapt function-provider accessors from included graphs when storing them as Metro `Provider` fields.
@@ -55,7 +53,7 @@ This release introduces experimental support for suspend providers. This is disa
 
 ### Changes
 
-- Refresh [benchmarks](https://zacsweers.github.io/metro/latest/performance/)!
+- Refreshed [benchmarks](https://zacsweers.github.io/metro/latest/performance/)!
   - They now run against latest Metro, Dagger, and KSP versions.
     - Dagger + KSP have improved significantly 🚀.
   - They now also include Koin.
