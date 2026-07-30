@@ -17,6 +17,7 @@ This release introduces experimental support for suspend providers. This is disa
 - Like ordinary scoped bindings, scoped suspend bindings are single-flight and retry after failures or cancellation. They also run on the coroutine context they were called on, so if this is important then you should use an appropriate `withContext` within your provider body.
 - The Gradle plugin automatically adds the new `runtime-coroutines` artifact when suspend providers are enabled. If runtime dependencies are managed manually, add it for scoped suspend bindings, `suspendLazy`, and injection requests containing `SuspendLazy` at any nesting level.
   - `runtime-coroutines` uses kotlinx-coroutines on every platform.
+- **Note:** Switching providers do not yet support suspend providers. You can still enable them, just scoped suspend provider fields will not be sharded into nested switching provider classes yet.
 
 #### Other new stuff
 
@@ -49,10 +50,23 @@ This release introduces experimental support for suspend providers. This is disa
 
 ### Changes
 
+- Refresh [benchmarks](https://zacsweers.github.io/metro/latest/performance/)!
+  - They now run against latest Metro, Dagger, and KSP versions.
+    - Dagger + KSP have improved significantly 🚀.
+  - They now also include Koin.
 - Build against Kotlin `2.4.10`. Note the runtime artifacts still target Kotlin `2.3.0` and Metro supports a wide range of compiler versions. See the [compatibility docs](https://zacsweers.github.io/metro/latest/compatibility/) for a full table of compatible versions.
 - Test IntelliJ `2026.2` stable.
 - Test Android Studio Quail 4 canaries.
+- Switch shaded Mordan dependency to just `mordant-core`.
+- Update shaded Okio dependency to `3.18.1`.
 - Update androidx.tracing to `2.0.0-rc01`.
+
+### Contributors
+
+Special thanks to the following contributors for contributing to this release!
+
+- [@kevinguitar](https://github.com/kevinguitar)
+- [@kyay10](https://github.com/kyay10)
 
 1.3.2
 -----
