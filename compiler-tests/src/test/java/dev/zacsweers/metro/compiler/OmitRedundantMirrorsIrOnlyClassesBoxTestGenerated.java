@@ -3633,6 +3633,12 @@ public class OmitRedundantMirrorsIrOnlyClassesBoxTestGenerated extends AbstractO
     }
 
     @Test
+    @TestMetadata("NestedGraphExtensionMiddleScopedBinding.kt")
+    public void testNestedGraphExtensionMiddleScopedBinding() {
+      run("NestedGraphExtensionMiddleScopedBinding.kt");
+    }
+
+    @Test
     @TestMetadata("NestedSuspendFunctionWrappersWithoutRuntime.kt")
     public void testNestedSuspendFunctionWrappersWithoutRuntime() {
       run("NestedSuspendFunctionWrappersWithoutRuntime.kt");
