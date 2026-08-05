@@ -4,6 +4,10 @@ Changelog
 **Unreleased**
 --------------
 
+### Enhancements
+
+- **[FIR/IR/Circuit]** Generate `CircuitSerializerRegistration` Set contributions for `@CircuitSerializable` `Screen` and `PopResult` types when using Circuit `0.36.0` or newer.
+
 ### Fixes
 
 - **[FIR/IR]** Generate contribution hints in FIR alongside IR class generation (Kotlin 2.4.20+), fixing downstream discovery for Metro's built-in contributions on all platforms.
@@ -18,6 +22,12 @@ Changelog
 - **[IR]** Fix a stack overflow when a nested graph extension requests a parent-scoped binding with suspend providers enabled.
 - **[IR]** Prevent stack overflows while generating deeply nested/complex dependency graph expressions.
 - **[IR]** Show shorter, consistent dependency paths in graph errors with improved route caching.
+
+### Contributors
+
+Special thanks to the following contributors for contributing to this release!
+
+- [@scana](https://github.com/scana)
 
 1.4.0
 -----

@@ -15,15 +15,26 @@ internal object CircuitClassIds {
   private const val CIRCUIT_RUNTIME_SCREEN_PACKAGE = "$CIRCUIT_RUNTIME_BASE_PACKAGE.screen"
   private const val CIRCUIT_RUNTIME_PRESENTER_PACKAGE = "$CIRCUIT_RUNTIME_BASE_PACKAGE.presenter"
   private const val CIRCUIT_CODEGEN_ANNOTATIONS_PACKAGE = "com.slack.circuit.codegen.annotations"
+  private const val CIRCUIT_SERIALIZATION_PACKAGE = "com.slack.circuit.serialization"
   private const val SUBCIRCUIT_PACKAGE = "com.slack.circuit.subcircuit"
+  // Build these from segments so Shadow does not relocate runtime serialization API names.
+  private val KOTLINX_SERIALIZATION_PACKAGE =
+    FqName.fromSegments(listOf("kotlinx", "serialization"))
+  private val KOTLINX_SERIALIZATION_MODULES_PACKAGE =
+    FqName.fromSegments(listOf("kotlinx", "serialization", "modules"))
 
   // Annotation
   val CircuitInject =
     ClassId(FqName(CIRCUIT_CODEGEN_ANNOTATIONS_PACKAGE), Name.identifier("CircuitInject"))
+  val CircuitSerializable =
+    ClassId(FqName(CIRCUIT_SERIALIZATION_PACKAGE), Name.identifier("CircuitSerializable"))
   val SubCircuitInject = ClassId(FqName(SUBCIRCUIT_PACKAGE), Name.identifier("SubCircuitInject"))
 
   // Runtime types
   val Screen = ClassId(FqName(CIRCUIT_RUNTIME_SCREEN_PACKAGE), Name.identifier("Screen"))
+  val PopResult = ClassId(FqName(CIRCUIT_RUNTIME_SCREEN_PACKAGE), Name.identifier("PopResult"))
+  val CircuitSaveable =
+    ClassId(FqName(CIRCUIT_RUNTIME_SCREEN_PACKAGE), Name.identifier("CircuitSaveable"))
   val Navigator = ClassId(FqName(CIRCUIT_RUNTIME_BASE_PACKAGE), Name.identifier("Navigator"))
   val CircuitContext =
     ClassId(FqName(CIRCUIT_RUNTIME_BASE_PACKAGE), Name.identifier("CircuitContext"))
@@ -40,6 +51,19 @@ internal object CircuitClassIds {
   // Presenter types
   val Presenter = ClassId(FqName(CIRCUIT_RUNTIME_PRESENTER_PACKAGE), Name.identifier("Presenter"))
   val PresenterFactory = Presenter.createNestedClassId(Name.identifier("Factory"))
+
+  // Serialization types
+  val CircuitSerializerRegistration =
+    ClassId(
+      FqName(CIRCUIT_SERIALIZATION_PACKAGE),
+      Name.identifier("CircuitSerializerRegistration"),
+    )
+  val KSerializer = ClassId(KOTLINX_SERIALIZATION_PACKAGE, Name.identifier("KSerializer"))
+  val PolymorphicModuleBuilder =
+    ClassId(
+      KOTLINX_SERIALIZATION_MODULES_PACKAGE,
+      Name.identifier("PolymorphicModuleBuilder"),
+    )
 
   // SubCircuit runtime types
   val SubScreen = ClassId(FqName(SUBCIRCUIT_PACKAGE), Name.identifier("SubScreen"))
@@ -71,6 +95,19 @@ internal object CircuitNames {
   val modifier = Name.identifier("modifier")
   val provider = Name.identifier("provider")
   val factoryField = Name.identifier("factory")
+  val register = Name.identifier("register")
+  val builder = Name.identifier("builder")
+  val subclass = Name.identifier("subclass")
+  val serializer = Name.identifier("serializer")
+}
+
+/** Returns the top-level registration class generated for a serializable Circuit type. */
+internal fun ClassId.circuitSerializerRegistrationClassId(): ClassId {
+  val flattenedName = relativeClassName.pathSegments().joinToString("_") { it.asString() }
+  return ClassId(
+    packageFqName,
+    Name.identifier("${flattenedName}CircuitSerializerRegistration"),
+  )
 }
 
 /** The Circuit runtime family targeted by a generated factory. */
