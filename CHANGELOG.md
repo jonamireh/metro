@@ -4,6 +4,11 @@ Changelog
 **Unreleased**
 --------------
 
+1.4.1
+-----
+
+_2026-08-06_
+
 ### New
 
 - **[FIR/IR/Circuit]** Generate `CircuitSerializerRegistration` Set contributions for `@CircuitSerializable` `Screen` and `PopResult` types when using Circuit `0.36.0` or newer.
