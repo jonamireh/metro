@@ -4,6 +4,11 @@ Changelog
 **Unreleased**
 --------------
 
+### Fixes
+
+- **[FIR/IR]** Resolve typealiases in `KClass` annotation arguments.
+- **[IR]** Fix Kotlin/JS compilation failures caused by colliding generated provider field names for inherited member injections.
+
 ### Changes
 
 - Support Kotlin `2.5.0-dev-3513`.

@@ -8,8 +8,8 @@ import dev.zacsweers.metro.compiler.Origins
 import dev.zacsweers.metro.compiler.api.ir.MetroIrContributionExtension
 import dev.zacsweers.metro.compiler.asName
 import dev.zacsweers.metro.compiler.expectAsOrNull
-import dev.zacsweers.metro.compiler.fir.coneTypeIfResolved
 import dev.zacsweers.metro.compiler.fir.replacesArgument
+import dev.zacsweers.metro.compiler.fir.resolveClassId
 import dev.zacsweers.metro.compiler.getAndAdd
 import dev.zacsweers.metro.compiler.safePathString
 import dev.zacsweers.metro.compiler.symbols.Symbols
@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.fir.expressions.FirGetClassCall
-import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.ir.builders.declarations.buildClass
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclaration
@@ -197,7 +196,7 @@ internal class IrContributionMerger(
                   // For Metro contributions, we need to check the parent class ID
                   // This is always the `MetroContribution`, the contribution's parent is the actual
                   // class
-                  it.rawType().classIdOrFail.parentClassId!!
+                  it.rawType().classIdOrFail.outerClassId!!
                 }
 
             val bindingContainers =
@@ -298,7 +297,7 @@ internal class IrContributionMerger(
               (mutableAllContributions.keys +
                   mutableContributedBindingContainers.keys +
                   mutableExternalSupertypes.keys)
-                .filter { it.parentClassId == excludedClassId }
+                .filter { it.outerClassId == excludedClassId }
             nestedContributions.forEach { contributionId ->
               mutableAllContributions.remove(contributionId)
               mutableContributedBindingContainers.remove(contributionId)
@@ -366,7 +365,7 @@ internal class IrContributionMerger(
                 annotations
                   .flatMap { it.replacesArgument(session)?.argumentList?.arguments.orEmpty() }
                   .mapNotNull {
-                    it.expectAsOrNull<FirGetClassCall>()?.coneTypeIfResolved()?.classId
+                    it.expectAsOrNull<FirGetClassCall>()?.resolveClassId(session)
                   }
               },
             )

@@ -129,9 +129,27 @@ public class JsBoxTestGenerated extends AbstractJsBoxTest {
     }
 
     @Test
+    @TestMetadata("ContributesToTypeAliasScope.kt")
+    public void testContributesToTypeAliasScope() {
+      run("ContributesToTypeAliasScope.kt");
+    }
+
+    @Test
+    @TestMetadata("ContributesToTypeAliasScopeAcrossModules.kt")
+    public void testContributesToTypeAliasScopeAcrossModules() {
+      run("ContributesToTypeAliasScopeAcrossModules.kt");
+    }
+
+    @Test
     @TestMetadata("ContributingMultibileNullableBindings.kt")
     public void testContributingMultibileNullableBindings() {
       run("ContributingMultibileNullableBindings.kt");
+    }
+
+    @Test
+    @TestMetadata("ContributionClassArrayTypeAliases.kt")
+    public void testContributionClassArrayTypeAliases() {
+      run("ContributionClassArrayTypeAliases.kt");
     }
 
     @Test
@@ -530,6 +548,12 @@ public class JsBoxTestGenerated extends AbstractJsBoxTest {
     @Test
     public void testAllFilesPresentInBindingcontainers() {
       KtTestUtil.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler-tests/src/test/data/box/bindingcontainers"), Pattern.compile("^(.+)\\.kt$"), null, true, "interop", "circuit");
+    }
+
+    @Test
+    @TestMetadata("BindingContainerClassArrayTypeAliases.kt")
+    public void testBindingContainerClassArrayTypeAliases() {
+      run("BindingContainerClassArrayTypeAliases.kt");
     }
 
     @Test
@@ -970,6 +994,12 @@ public class JsBoxTestGenerated extends AbstractJsBoxTest {
     @TestMetadata("InjectedGenericsClassWorksWithBinds.kt")
     public void testInjectedGenericsClassWorksWithBinds() {
       run("InjectedGenericsClassWorksWithBinds.kt");
+    }
+
+    @Test
+    @TestMetadata("KClassQualifierTypeAlias.kt")
+    public void testKClassQualifierTypeAlias() {
+      run("KClassQualifierTypeAlias.kt");
     }
 
     @Test
@@ -2336,6 +2366,12 @@ public class JsBoxTestGenerated extends AbstractJsBoxTest {
     @Test
     public void testAllFilesPresentInMultibindings() {
       KtTestUtil.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler-tests/src/test/data/box/multibindings"), Pattern.compile("^(.+)\\.kt$"), null, true, "interop", "circuit");
+    }
+
+    @Test
+    @TestMetadata("ClassKeyTypeAlias.kt")
+    public void testClassKeyTypeAlias() {
+      run("ClassKeyTypeAlias.kt");
     }
 
     @Test
