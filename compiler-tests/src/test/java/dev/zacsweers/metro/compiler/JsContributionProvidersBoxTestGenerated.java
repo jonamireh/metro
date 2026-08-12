@@ -219,6 +219,12 @@ public class JsContributionProvidersBoxTestGenerated extends AbstractJsContribut
     }
 
     @Test
+    @TestMetadata("ExcludesWithOriginBoundTypeAcrossModules.kt")
+    public void testExcludesWithOriginBoundTypeAcrossModules() {
+      run("ExcludesWithOriginBoundTypeAcrossModules.kt");
+    }
+
+    @Test
     @TestMetadata("ExcludesWithOriginInExtension.kt")
     public void testExcludesWithOriginInExtension() {
       run("ExcludesWithOriginInExtension.kt");

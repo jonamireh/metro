@@ -7,6 +7,7 @@ Changelog
 ### Fixes
 
 - **[FIR/IR]** Resolve typealiases in `KClass` annotation arguments.
+- **[FIR/IR]** Apply contribution exclusions and replacements across `@Origin` chains.
 - **[IR]** Fix Kotlin/JS compilation failures caused by colliding generated provider field names for inherited member injections.
 
 ### Changes
@@ -15,6 +16,12 @@ Changelog
 - Test Kotlin `2.4.20-RC`.
 - Remove the `watchosArm32` target, which Kotlin no longer supports.
 - Update androidx.tracing to `2.0.0` stable. Note that Metro's runtime tracing support is still experimental to incubate a little longer.
+
+### Contributors
+
+Special thanks to the following contributors for contributing to this release!
+
+- [@eygraber](https://github.com/eygraber)
 
 1.4.1
 -----
