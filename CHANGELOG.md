@@ -11,6 +11,7 @@ Changelog
 - **[FIR/IR]** Apply contribution exclusions and replacements across `@Origin` chains.
 - **[IR]** Fix Kotlin/JS compilation failures caused by colliding generated provider field names for inherited member injections.
 - **[IR/interop]** Fix a compiler crash when Dagger interop is enabled and deeply nested classes have long names.
+- **[IC]** Regenerate parent graph implementations when graph extension members change during incremental compilation.
 
 ### Changes
 
@@ -24,6 +25,7 @@ Changelog
 
 Special thanks to the following contributors for contributing to this release!
 
+- [@erawhctim](https://github.com/erawhctim)
 - [@eygraber](https://github.com/eygraber)
 - [@grandstaish](https://github.com/grandstaish)
 
