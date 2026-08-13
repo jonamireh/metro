@@ -24,11 +24,6 @@ Changelog
 Special thanks to the following contributors for contributing to this release!
 
 - [@eygraber](https://github.com/eygraber)
-
-### Contributors
-
-Special thanks to the following contributors for contributing to this release!
-
 - [@grandstaish](https://github.com/grandstaish)
 
 1.4.1
