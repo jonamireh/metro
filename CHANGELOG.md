@@ -4,6 +4,11 @@ Changelog
 **Unreleased**
 --------------
 
+1.4.2
+-----
+
+_2026-08-13_
+
 ### Fixes
 
 - **[FIR]** Consolidate contribution hint configuration logic to make it less Gradle-specific.
