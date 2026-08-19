@@ -8,6 +8,13 @@ Changelog
 
 - **[FIR]** Avoid annotation-cache races during concurrent IDE analysis.
 - **[IR]** Fix a runtime crash when an assisted-injected class with no assisted parameters is used across modules with IR class generation.
+- **[IR/interop]** Fix `Class`-keyed maps wrapped in providers or lazy values when `KClass`/`Class` interop is enabled.
+
+### Contributors
+
+Special thanks to the following contributors for contributing to this release!
+
+- [@grandstaish](https://github.com/grandstaish)
 
 1.4.2
 -----
