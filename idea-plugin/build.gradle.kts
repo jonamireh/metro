@@ -43,9 +43,105 @@ val propertyResolver =
 
 val metroBootstrapVersion = propertyResolver.requiredStringProvider("METRO_BOOTSTRAP_VERSION").get()
 
+val explicitReleaseBuild =
+  providers
+    .gradleProperty("metroIdeaReleaseBuild")
+    .map { it.toBooleanStrictOrNull() == true }
+    .orElse(false)
+
+// Gradle accepts camel-hump task abbreviations like `pubPl`, so match them the same way.
+fun matchesTaskAbbreviation(requested: String, taskName: String): Boolean {
+  if (requested.isEmpty()) {
+    return false
+  }
+  val pattern = buildString {
+    for (ch in requested) {
+      if (ch.isUpperCase()) {
+        append("[a-z0-9]*")
+      }
+      append(Regex.escape(ch.toString()))
+    }
+    append("[a-zA-Z0-9]*")
+  }
+  return Regex(pattern).matches(taskName)
+}
+
+val publishingTaskRequested = providers.provider {
+  gradle.startParameter.taskNames
+    .map { it.substringAfterLast(':') }
+    .any { requested ->
+      matchesTaskAbbreviation(requested, "publishPlugin") ||
+        matchesTaskAbbreviation(requested, "signPlugin")
+    }
+}
+
+val isReleaseOrPublishingBuild =
+  explicitReleaseBuild.zip(publishingTaskRequested) { explicitRelease, publishRequested ->
+    explicitRelease || publishRequested
+  }
+
+val releaseGitSha =
+  providers.of(GitCommitValueSource::class.java) {
+    parameters.projectDirectory.set(layout.projectDirectory.dir(".."))
+  }
+
+val gitSha = isReleaseOrPublishingBuild.flatMap { isReleaseBuild ->
+  if (isReleaseBuild) {
+    // A release build without a resolvable sha should fail loudly, not publish untagged.
+    providers.provider {
+      val sha = releaseGitSha.orNull
+      checkNotNull(sha) {
+        "Could not read the git commit sha for a release/publishing build"
+      }
+    }
+  } else {
+    providers.provider { "" }
+  }
+}
+
 group = propertyResolver.requiredStringProvider("GROUP").get()
 
-version = propertyResolver.requiredStringProvider("VERSION_NAME").get()
+val versionProvider = propertyResolver.requiredStringProvider("VERSION_NAME")
+
+version = versionProvider.get()
+
+val isSnapshotVersion = versionProvider.map { it.contains("SNAPSHOT") }
+
+// Computed once so every query of the version provider observes the same timestamp.
+val snapshotTimestamp by lazy { System.currentTimeMillis() }
+
+val pluginVersion =
+  isReleaseOrPublishingBuild.zip(versionProvider) { releaseOrPublishing, versionName ->
+    if (releaseOrPublishing && versionName.contains("SNAPSHOT")) {
+      "$versionName-$snapshotTimestamp"
+    } else {
+      versionName
+    }
+  }
+
+val defaultPublishingChannels = isSnapshotVersion.map { snapshotVersion ->
+  if (snapshotVersion) {
+    listOf("EAP")
+  } else {
+    listOf("Stable")
+  }
+}
+
+val configuredPublishingChannels =
+  propertyResolver.optionalStringProvider("intellijPlatformPublishingChannels").map { channels ->
+    channels.split(',').map(String::trim).filter(String::isNotEmpty)
+  }
+
+val publishingChannels =
+  configuredPublishingChannels
+    .flatMap { channels ->
+      if (channels.isEmpty()) {
+        defaultPublishingChannels
+      } else {
+        providers.provider { channels }
+      }
+    }
+    .orElse(defaultPublishingChannels)
 
 metroProject { jvmTarget.set(libs.versions.ideaJvmTarget) }
 
@@ -66,6 +162,8 @@ buildConfig {
     }
   }
   buildConfigField("String", "PLUGIN_ID", libs.versions.pluginId.map { "\"$it\"" })
+  buildConfigField("String", "VERSION", providers.provider { "\"$version\"" })
+  buildConfigField("String", "GIT_SHA", gitSha.map { "\"$it\"" })
 }
 
 val metroRuntimeClasspath: Configuration by configurations.creating {
@@ -75,11 +173,23 @@ val metroRuntimeClasspath: Configuration by configurations.creating {
 
 val shaded: Configuration by configurations.creating
 
+// Runs a sandboxed IDE with the plugin installed from source: ./gradlew runLocalIde
+// To use a locally installed IDE (e.g. Android Studio) instead of the default target:
+// ./gradlew runLocalIde "-PintellijPlatformTesting.idePath=/Applications/Android Studio.app"
+val runLocalIde by
+  intellijPlatformTesting.runIde.registering {
+    providers.gradleProperty("intellijPlatformTesting.idePath").orNull?.let {
+      localPath.set(file(it))
+    }
+  }
+
 dependencies {
   intellijPlatform {
     intellijIdeaUltimate("2026.1.3")
     bundledPlugin("org.jetbrains.kotlin")
     testFramework(TestFrameworkType.Platform)
+    pluginVerifier()
+    zipSigner()
   }
 
   metroRuntimeClasspath("dev.zacsweers.metro:runtime:$metroBootstrapVersion")
@@ -100,7 +210,7 @@ intellijPlatform {
   pluginConfiguration {
     id.set("dev.zacsweers.metro.idea")
     name.set("Metro")
-    version.set(providers.provider { project.version.toString() })
+    version.set(pluginVersion)
     description.set("Additional IDE support and features for projects using Metro.")
 
     ideaVersion {
@@ -118,6 +228,15 @@ intellijPlatform {
 
   publishing {
     token.set(propertyResolver.optionalStringProvider("intellijPlatformPublishingToken"))
+
+    channels.set(publishingChannels)
+
+    // Boolean for whether to mark this release as hidden
+    hidden.set(
+      propertyResolver
+        .optionalStringProvider("intellijPlatformPublishingHidden")
+        .map(String::toBoolean)
+    )
   }
 
   pluginVerification {
