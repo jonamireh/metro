@@ -13,6 +13,8 @@ import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.builder.selected
+import com.intellij.ui.layout.ComponentPredicate
 import dev.zacsweers.metro.idea.index.MetroResolutionService
 
 class MetroSettingsState : BaseState() {
@@ -22,8 +24,14 @@ class MetroSettingsState : BaseState() {
   /** Suppresses IntelliJ's false-positive kapt configuration warning in Metro-enabled modules. */
   var suppressKaptConfigurationWarning by property(true)
 
+  /** Shows binding navigation in the editor without disabling graph browsing or validation. */
+  var enableBindingResolution by property(true)
+
   /** Also resolve bindings from compiled dependencies (inject classes, contribution hints). */
   var resolveFromLibraries by property(true)
+
+  /** `assisted` inlay hint next to implicitly assisted parameters, like Circuit-provided ones. */
+  var assistedParameterInlays by property(true)
 }
 
 /** Project-level Metro IDE settings, stored in `.idea/metro.xml` so teams can check them in. */
@@ -52,10 +60,27 @@ class MetroSettingsConfigurable(private val project: Project) : BoundConfigurabl
         .bindSelected(state::suppressKaptConfigurationWarning)
         .comment("Metro does not require kapt; applies only to modules with Metro enabled")
     }
+    lateinit var resolutionSelected: ComponentPredicate
+    row {
+      val cell =
+        checkBox("Show binding navigation (gutter icons, code vision, inlay hints)")
+          .bindSelected(state::enableBindingResolution)
+      resolutionSelected = cell.selected
+    }
     row {
       checkBox("Resolve bindings from compiled dependencies")
         .bindSelected(state::resolveFromLibraries)
         .comment("Includes bindings contributed by compiled project dependencies")
+    }
+    indent {
+      row {
+        checkBox("Show \"assisted\" inlay hints")
+          .bindSelected(state::assistedParameterInlays)
+          .enabledIf(resolutionSelected)
+          .comment(
+            "Implicitly assisted parameters, such as Circuit-provided types, that have no @Assisted annotation in source"
+          )
+      }
     }
   }
 
