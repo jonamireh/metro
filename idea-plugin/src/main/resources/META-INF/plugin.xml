@@ -26,6 +26,9 @@ Metro IDE support for Kotlin dependency injection projects.
         instance="dev.zacsweers.metro.idea.MetroSettingsConfigurable"/>
     <implicitUsageProvider implementation="dev.zacsweers.metro.idea.MetroImplicitUsageProvider"/>
     <errorHandler implementation="dev.zacsweers.metro.idea.MetroErrorHandler"/>
+    <codeInsight.lineMarkerProvider
+        language="kotlin"
+        implementationClass="dev.zacsweers.metro.idea.index.MetroLineMarkerProvider"/>
     <codeInsight.daemonBoundCodeVisionProvider
         implementation="dev.zacsweers.metro.idea.index.MetroCodeVisionProvider"/>
     <config.codeVisionGroupSettingProvider
@@ -51,5 +54,21 @@ Metro IDE support for Kotlin dependency injection projects.
         language="kotlin"
         implementationClass="dev.zacsweers.metro.idea.MetroKaptCompilerPluginInspectionSuppressor"
         order="first"/>
+    <toolWindow
+        id="Metro"
+        anchor="right"
+        icon="dev.zacsweers.metro.idea.MetroIcons.METRO"
+        factoryClass="dev.zacsweers.metro.idea.toolwindow.MetroToolWindowFactory"/>
   </extensions>
+
+  <actions>
+    <action
+        id="Metro.ValidateGraph"
+        class="dev.zacsweers.metro.idea.toolwindow.ValidateMetroGraphAction"
+        text="Validate Metro Graph"
+        description="Validates the Metro graph at the caret in the Metro tool window"
+        icon="dev.zacsweers.metro.idea.MetroIcons.GRAPH">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+    </action>
+  </actions>
 </idea-plugin>
