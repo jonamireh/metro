@@ -191,6 +191,13 @@ val metroRuntimeClasspath: Configuration by configurations.creating {
   resolutionStrategy.useGlobalDependencySubstitutionRules = false
 }
 
+val kotlinStdlibClasspath: Configuration by configurations.creating {
+  isTransitive = false
+}
+
+val compilerTestData = layout.projectDirectory.dir("../compiler-tests/src/test/data")
+val compilerParityTestData = compilerTestData.dir("diagnostic/ideaParity")
+
 // A compiled "library" with Metro-annotated classes + handwritten contribution hint functions,
 // used by tests covering resolution from binary dependencies.
 val libFixture =
@@ -235,6 +242,7 @@ dependencies {
   }
 
   metroRuntimeClasspath("dev.zacsweers.metro:runtime:$metroBootstrapVersion")
+  kotlinStdlibClasspath(libs.kotlin.stdlib)
   add(
     libFixture.get().compileOnlyConfigurationName,
     "dev.zacsweers.metro:runtime:$metroBootstrapVersion",
@@ -307,16 +315,30 @@ tasks.withType<VerifyPluginTask>().configureEach {
 
 tasks.test {
   dependsOn(metroRuntimeClasspath)
+  dependsOn(kotlinStdlibClasspath)
   dependsOn(libFixtureJar)
+  inputs.dir(compilerParityTestData).withPathSensitivity(PathSensitivity.RELATIVE)
+  // The argument provider below has no annotated properties, so these must be declared as
+  // inputs explicitly or fixture/classpath changes leave test runs UP-TO-DATE with stale jars.
   inputs
     .files(libFixtureJar)
     .withPropertyName("metroLibFixtureJar")
+    .withPathSensitivity(PathSensitivity.NONE)
+  inputs
+    .files(metroRuntimeClasspath)
+    .withPropertyName("metroRuntimeTestClasspath")
+    .withPathSensitivity(PathSensitivity.NONE)
+  inputs
+    .files(kotlinStdlibClasspath)
+    .withPropertyName("kotlinStdlibTestClasspath")
     .withPathSensitivity(PathSensitivity.NONE)
   systemProperty("metroRuntime.classpath", metroRuntimeClasspath.asPath)
   jvmArgumentProviders.add(
     CommandLineArgumentProvider {
       listOf(
-        "-DmetroLibFixture.classpath=${libFixtureJar.get().archiveFile.get().asFile.absolutePath}"
+        "-DkotlinStdlib.classpath=${kotlinStdlibClasspath.asPath}",
+        "-DmetroLibFixture.classpath=${libFixtureJar.get().archiveFile.get().asFile.absolutePath}",
+        "-DmetroCompilerTestData.path=${compilerTestData.asFile.absolutePath}",
       )
     }
   )
