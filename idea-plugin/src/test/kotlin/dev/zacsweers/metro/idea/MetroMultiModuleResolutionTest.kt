@@ -766,6 +766,90 @@ class MetroMultiModuleResolutionTest : UsefulTestCase() {
     )
   }
 
+  fun testDynamicGraphUsesCallSiteAnvilInteropForContributionRanks() {
+    val libraryFile =
+      fixture.addFileToProject(
+        "library/lib/LibGraph.kt",
+        """
+        package lib
+
+        import dev.zacsweers.metro.*
+        import kotlin.reflect.KClass
+
+        annotation class RankedBinding(val scope: KClass<*>, val rank: Int = 0)
+
+        interface Service
+
+        @Inject @RankedBinding(AppScope::class, rank = 50)
+        class LowerService : Service
+
+        @Inject @RankedBinding(AppScope::class, rank = 100)
+        class HigherService : Service
+
+        @DependencyGraph(AppScope::class)
+        interface LibGraph {
+          val service: Service
+        }
+        """
+          .trimIndent(),
+      ) as KtFile
+    val appFile =
+      fixture.addFileToProject(
+        "app/app/DynamicGraph.kt",
+        """
+        package app
+
+        import dev.zacsweers.metro.*
+        import lib.LibGraph
+
+        @BindingContainer
+        object DynamicBindings {
+          @Provides fun unrelated(): String = "dynamic"
+        }
+
+        val graph = createDynamicGraph<LibGraph>(DynamicBindings)
+        """
+          .trimIndent(),
+      ) as KtFile
+    val appModule = checkNotNull(ModuleUtilCore.findModuleForPsiElement(appFile))
+    val libraryModule = checkNotNull(ModuleUtilCore.findModuleForPsiElement(libraryFile))
+    appModule.setModuleMetroOptions(
+      "custom-contributes-binding" to "lib/RankedBinding",
+      "enable-dagger-anvil-interop" to "true",
+    )
+    libraryModule.setModuleMetroOptions(
+      "custom-contributes-binding" to "lib/RankedBinding",
+      "enable-dagger-anvil-interop" to "false",
+    )
+    PsiDocumentManager.getInstance(fixture.project).commitAllDocuments()
+    IndexingTestUtil.waitUntilIndexesAreReady(fixture.project)
+
+    val index = fixture.project.service<MetroResolutionService>().index(appFile)
+    val graph = index.graphs.single { it.name == "LibGraph" }
+    val contexts = index.contextsFor(graph)
+    val staticContext = contexts.single { it.dynamicGraph == null }
+    val dynamicContext = contexts.single { it.dynamicGraph != null }
+    val consumer =
+      checkNotNull(
+        index.consumerEntryAt(libraryFile.declarationsIncludingNested().property("service"))
+      )
+
+    assertFalse(staticContext.daggerAnvilInteropEnabled)
+    assertTrue(dynamicContext.daggerAnvilInteropEnabled)
+    assertEquals(
+      setOf("LowerService", "HigherService"),
+      index.bindingsFor(consumer, index.queryContext(staticContext)!!).mapTo(mutableSetOf()) {
+        it.implementationName
+      },
+    )
+    assertEquals(
+      listOf("HigherService"),
+      index.bindingsFor(consumer, index.queryContext(dynamicContext)!!).map {
+        it.implementationName
+      },
+    )
+  }
+
   fun testRegularDependenciesAreNotRecursivelyVisible() {
     val libraryFile =
       fixture.addFileToProject(

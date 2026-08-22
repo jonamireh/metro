@@ -1751,7 +1751,8 @@ private fun graphInterfaceLibrarySignature(
         data.originClassId,
         data.replaces,
         data.contributionScopes,
-        data.contributionRank,
+        data.priority,
+        data.priorityFromAnvilRank,
         data.dependencies.map(::contextKeyLibrarySignature),
         data.constructorDependencies.map(::contextKeyLibrarySignature),
         data.memberDependencies.map(::contextKeyLibrarySignature),
@@ -1783,7 +1784,10 @@ private fun bindingLibrarySignature(binding: KaBinding): BindingLibrarySignature
   val isFactoryInput =
     graphInput != null && (graphInput.isGraphInput || graphInput.isBindingContainerInput)
   if (!isAssistedFactory && !isGeneratedContribution && !isFactoryInput) return null
-  if (!isFactoryInput && !isAssistedFactory && binding.dependencies.isEmpty()) return null
+  val hasPriorityMetadata = binding.priority != Int.MIN_VALUE || binding.priorityFromAnvilRank
+  val needsLibrarySignature =
+    isFactoryInput || isAssistedFactory || binding.dependencies.isNotEmpty() || hasPriorityMetadata
+  if (!needsLibrarySignature) return null
   return BindingLibrarySignature(
     binding.typeKey,
     binding.originClassId,
@@ -1792,6 +1796,8 @@ private fun bindingLibrarySignature(binding: KaBinding): BindingLibrarySignature
     isAssistedFactory,
     binding.scope,
     binding.contributionScopes,
+    binding.priority,
+    binding.priorityFromAnvilRank,
     binding.dependencies,
     binding.ownerGraphId,
     graphInput?.additionalOwnerGraphIds.orEmpty(),
@@ -1930,7 +1936,8 @@ private data class GraphInterfaceBindingLibrarySignature(
   val originClassId: ClassId?,
   val replaces: Set<ClassId>,
   val contributionScopes: Set<ClassId>,
-  val contributionRank: Long,
+  val priority: Int,
+  val priorityFromAnvilRank: Boolean,
   val dependencies: List<ContextKeyLibrarySignature>,
   val constructorDependencies: List<ContextKeyLibrarySignature>,
   val memberDependencies: List<ContextKeyLibrarySignature>,
@@ -1953,6 +1960,8 @@ private data class BindingLibrarySignature(
   val isAssistedFactory: Boolean,
   val scope: KaAnnotationSnapshot?,
   val contributionScopes: Set<ClassId>,
+  val priority: Int,
+  val priorityFromAnvilRank: Boolean,
   val dependencies: List<KaContextualTypeKey>,
   val ownerGraphId: GraphDeclarationId?,
   val additionalOwnerGraphIds: Set<GraphDeclarationId>,
